@@ -1,0 +1,33 @@
+﻿@model IEnumerable<BibliotekaWeb.Models.Wypozyczenie>
+
+@{
+    ViewData["Title"] = "Wypożyczenia";
+}
+
+<h1>Wypożyczenia</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Tytuł</th>
+            <th>Autor</th>
+            <th>Wypożyczający</th>
+            <th>Data Wypożyczenia</th>
+            <th>Termin Zwrotu</th>
+            <th>Kara</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Ksiazka.Tytul</td>
+                <td>@item.Ksiazka.Autor</td>
+                <td>@item.Czytelnik.Email</td>
+                <td>@item.DataWypozyczenia.ToShortDateString()</td>
+                <td>@item.TerminZwrotu.ToShortDateString()</td>
+                <td>@item.Kara.ToString("C")</td>
+            </tr>
+        }
+    </tbody>
+</table>
