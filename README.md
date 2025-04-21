@@ -17,7 +17,7 @@ BibliotekaWeb to aplikacja webowa służąca do zarządzania biblioteką, umożl
 1. Sklonuj, bądź pobierz repozytorium:
 
     ```bash
-    git clone https://github.com/MasterFileq/BibliotekaWeb.git
+    git clone https://github.com/MasterFileq/BibliotekaWebP.git
     cd BibliotekaWeb
     ```
 
