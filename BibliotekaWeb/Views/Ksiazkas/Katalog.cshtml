@@ -1,0 +1,101 @@
+﻿@model IEnumerable<BibliotekaWeb.Models.Ksiazka>
+
+@{
+    ViewData["Title"] = "Katalog książek";
+}
+
+<h1>Katalog książek</h1>
+
+<!-- Formularz filtrowania -->
+<form asp-action="Katalog" method="get" class="mb-4">
+    <div class="row">
+        <div class="col-md-3">
+            <label for="searchString">Tytuł:</label>
+            <input type="text" name="searchString" class="form-control" value="@ViewData["CurrentFilter"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="tematyka">Tematyka:</label>
+            <select name="tematyka" class="form-control">
+                <option value="">Wszystkie</option>
+                @foreach (var temat in ViewBag.Tematyki as List<BibliotekaWeb.Models.Tematyka>)
+                {
+                    <option value="@temat">@temat</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="author">Autor:</label>
+            <input type="text" name="author" class="form-control" value="@ViewData["CurrentAuthor"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="isbn">ISBN:</label>
+            <input type="text" name="isbn" class="form-control" value="@ViewData["CurrentISBN"]" />
+        </div>
+        <div class="col-md-3 mt-2">
+            <label for="available">Dostępność:</label>
+            <select name="available" class="form-control">
+                <option value="">Wszystkie</option>
+                <option value="true">Dostępne</option>
+                <option value="false">Niedostępne</option>
+            </select>
+        </div>
+        <div class="col-md-3 mt-4">
+            <button type="submit" class="btn btn-primary">Filtruj</button>
+        </div>
+    </div>
+</form>
+
+<!-- Tabela książek -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>Tytuł</th>
+            <th>Autor</th>
+            <th>ISBN</th>
+            <th>Tematyka</th>
+            <th>Dostępność</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Tytul</td>
+                <td>@item.Autor</td>
+                <td>@item.ISBN</td>
+                <td>@item.Tematyka</td>
+                <td>@(item.Dostepnosc ? "Dostępna" : "Niedostępna")</td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Szczegóły</a>
+                    @if (item.Dostepnosc)
+                    {
+                        <a asp-action="Wypozycz" asp-route-id="@item.Id" class="btn btn-success btn-sm">Wypożycz</a>
+                    }
+                    else if (User.IsInRole("Czytelnik"))
+                    {
+                        <a asp-action="Zwroc" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć</a>
+                    }
+                    @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+                    {
+                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edytuj</a>
+                        <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Usuń</a>
+                        if (!item.Dostepnosc)
+                        {
+                            <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć (Admin)</a>
+                        }
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace BibliotekaWeb.Controllers
 {
@@ -34,8 +35,19 @@ namespace BibliotekaWeb.Controllers
                     wypozyczenie.Kara = 0;
                 }
             }
-
             await _context.SaveChangesAsync();
+
+            var wypozyczeniaPoMiesiacach = wypozyczenia
+                .GroupBy(w => new { w.DataWypozyczenia.Year, w.DataWypozyczenia.Month })
+                .Select(g => new
+                {
+                    Miesiac = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    LiczbaWypozyczen = g.Count()
+                })
+                .OrderBy(g => g.Miesiac)
+                .ToList();
+
+            ViewBag.WypozyczeniaPoMiesiacach = wypozyczeniaPoMiesiacach;
 
             return View(wypozyczenia);
         }

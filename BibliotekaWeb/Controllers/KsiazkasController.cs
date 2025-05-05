@@ -12,7 +12,6 @@ namespace BibliotekaWeb.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
-        //private readonly RoleManager<IdentityRole> _roleManager;
 
         public KsiazkasController(ApplicationDbContext context, UserManager<IdentityUser> userManager)
         {
@@ -20,8 +19,9 @@ namespace BibliotekaWeb.Controllers
             _userManager = userManager;
         }
 
+        // Katalog książek z filtrowaniem
         [Authorize(Roles = "Administrator, Bibliotekarz, Czytelnik")]
-        public async Task<IActionResult> Index(string searchString, string author, string isbn, bool? available)
+        public async Task<IActionResult> Katalog(string searchString, Tematyka? tematyka, string author, string isbn, bool? available)
         {
             var books = from b in _context.Ksiazka
                         select b;
@@ -29,6 +29,11 @@ namespace BibliotekaWeb.Controllers
             if (!string.IsNullOrEmpty(searchString))
             {
                 books = books.Where(b => b.Tytul.Contains(searchString));
+            }
+
+            if (tematyka.HasValue)
+            {
+                books = books.Where(b => b.Tematyka == tematyka.Value);
             }
 
             if (!string.IsNullOrEmpty(author))
@@ -46,7 +51,56 @@ namespace BibliotekaWeb.Controllers
                 books = books.Where(b => b.Dostepnosc == available.Value);
             }
 
+            ViewBag.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
             return View(await books.ToListAsync());
+        }
+
+        // Książki wypożyczone przez czytelnika
+        [Authorize(Roles = "Czytelnik")]
+        public async Task<IActionResult> Wypozyczone()
+        {
+            var user = await _userManager.FindByNameAsync(User.Identity.Name);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "Nie udało się znaleźć zalogowanego użytkownika.";
+                return RedirectToAction(nameof(Katalog));
+            }
+
+            var wypozyczenia = await _context.Wypozyczenie
+                .Include(w => w.Ksiazka)
+                .Where(w => w.CzytelnikId == user.Id)
+                .ToListAsync();
+
+            return View(wypozyczenia);
+        }
+
+        // Akcja przedłużenia wypożyczenia
+        [Authorize(Roles = "Czytelnik")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Przedluz(int id)
+        {
+            var user = await _userManager.FindByNameAsync(User.Identity.Name);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "Nie udało się znaleźć zalogowanego użytkownika.";
+                return RedirectToAction(nameof(Wypozyczone));
+            }
+
+            var wypozyczenie = await _context.Wypozyczenie
+                .FirstOrDefaultAsync(w => w.Id == id && w.CzytelnikId == user.Id);
+
+            if (wypozyczenie == null)
+            {
+                TempData["ErrorMessage"] = "Nie znaleziono wypożyczenia.";
+                return RedirectToAction(nameof(Wypozyczone));
+            }
+
+            wypozyczenie.TerminZwrotu = wypozyczenie.TerminZwrotu.AddDays(30);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Wypożyczenie zostało przedłużone o 30 dni.";
+            return RedirectToAction(nameof(Wypozyczone));
         }
 
         public async Task<IActionResult> Details(int? id)
@@ -66,8 +120,6 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
-
-
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public IActionResult Create()
         {
@@ -77,13 +129,13 @@ namespace BibliotekaWeb.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> Create([Bind("Id,Tytul,Autor,ISBN,Dostepnosc")] Ksiazka ksiazka)
+        public async Task<IActionResult> Create([Bind("Id,Tytul,Autor,ISBN,Dostepnosc,Tematyka")] Ksiazka ksiazka)
         {
             if (ModelState.IsValid)
             {
                 _context.Add(ksiazka);
                 await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
             return View(ksiazka);
         }
@@ -107,7 +159,7 @@ namespace BibliotekaWeb.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Tytul,Autor,ISBN,Dostepnosc")] Ksiazka ksiazka)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Tytul,Autor,ISBN,Dostepnosc,Tematyka")] Ksiazka ksiazka)
         {
             if (id != ksiazka.Id)
             {
@@ -132,7 +184,7 @@ namespace BibliotekaWeb.Controllers
                         throw;
                     }
                 }
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
             return View(ksiazka);
         }
@@ -166,7 +218,7 @@ namespace BibliotekaWeb.Controllers
                 _context.Ksiazka.Remove(ksiazka);
                 await _context.SaveChangesAsync();
             }
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Katalog));
         }
 
         private bool KsiazkaExists(int id)
@@ -186,14 +238,14 @@ namespace BibliotekaWeb.Controllers
             if (!ksiazka.Dostepnosc)
             {
                 TempData["ErrorMessage"] = "Książka jest już wypożyczona.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             var user = await _userManager.FindByNameAsync(User.Identity.Name);
             if (user == null)
             {
                 TempData["ErrorMessage"] = "Nie udało się znaleźć zalogowanego użytkownika.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             var czytelnikId = user.Id;
@@ -217,11 +269,11 @@ namespace BibliotekaWeb.Controllers
             catch (DbUpdateException ex)
             {
                 TempData["ErrorMessage"] = $"Wystąpił błąd podczas wypożyczania książki: {ex.Message} InnerException: {ex.InnerException?.Message}";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             TempData["SuccessMessage"] = "Książka została pomyślnie wypożyczona.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Katalog));
         }
 
         [Authorize(Roles = "Administrator, Bibliotekarz, Czytelnik")]
@@ -231,7 +283,7 @@ namespace BibliotekaWeb.Controllers
             if (user == null)
             {
                 TempData["ErrorMessage"] = "Nie udało się znaleźć zalogowanego użytkownika.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             var czytelnikId = user.Id;
@@ -242,14 +294,14 @@ namespace BibliotekaWeb.Controllers
             if (wypozyczenie == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono wypożyczenia dla tej książki.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             var ksiazka = await _context.Ksiazka.FindAsync(id);
             if (ksiazka == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono książki.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             ksiazka.Dostepnosc = true;
@@ -263,13 +315,12 @@ namespace BibliotekaWeb.Controllers
             catch (DbUpdateException ex)
             {
                 TempData["ErrorMessage"] = $"Wystąpił błąd podczas zwracania książki: {ex.Message} InnerException: {ex.InnerException?.Message}";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             TempData["SuccessMessage"] = "Książka została pomyślnie zwrócona.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Katalog));
         }
-
 
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> ZwrocByAdmin(int id)
@@ -280,14 +331,14 @@ namespace BibliotekaWeb.Controllers
             if (wypozyczenie == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono wypożyczenia dla tej książki.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             var ksiazka = await _context.Ksiazka.FindAsync(id);
             if (ksiazka == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono książki.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             ksiazka.Dostepnosc = true;
@@ -301,11 +352,11 @@ namespace BibliotekaWeb.Controllers
             catch (DbUpdateException ex)
             {
                 TempData["ErrorMessage"] = $"Wystąpił błąd podczas zwracania książki: {ex.Message} InnerException: {ex.InnerException?.Message}";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Katalog));
             }
 
             TempData["SuccessMessage"] = "Książka została pomyślnie zwrócona.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Katalog));
         }
     }
 }

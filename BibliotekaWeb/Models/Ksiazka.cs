@@ -2,6 +2,14 @@
 
 namespace BibliotekaWeb.Models
 {
+    public enum Tematyka
+    {
+        Ekonomia,
+        Matematyka,
+        Geografia,
+        Inne
+    }
+
     public class Ksiazka
     {
         public int Id { get; set; }
@@ -22,5 +30,9 @@ namespace BibliotekaWeb.Models
         [Required(ErrorMessage = "Dostępność jest wymagana.")]
         [Display(Name = "Dostępność")]
         public bool Dostepnosc { get; set; }
+
+        [Required(ErrorMessage = "Tematyka jest wymagana.")]
+        [Display(Name = "Tematyka")]
+        public Tematyka Tematyka { get; set; }
     }
 }

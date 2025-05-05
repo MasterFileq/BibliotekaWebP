@@ -37,7 +37,7 @@
     </dl>
 </div>
 <div>
-    <a asp-action="Index">Back to List</a>
+    <a asp-action="Katalog">Back to List</a>
     @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
     {
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edit</a>

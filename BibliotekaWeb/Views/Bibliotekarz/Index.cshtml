@@ -6,6 +6,12 @@
 
 <h1>Wypożyczenia</h1>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div style="width: 100%; max-width: 600px; margin: 20px 0;">
+    <canvas id="wypozyczeniaChart"></canvas>
+</div>
+
 <table class="table">
     <thead>
         <tr>
@@ -31,3 +37,44 @@
         }
     </tbody>
 </table>
+
+@section Scripts {
+    <script>
+        const daneWypozyczen = @Html.Raw(Json.Serialize(ViewBag.WypozyczeniaPoMiesiacach));
+
+        const etykiety = daneWypozyczen.map(d => d.miesiac);
+        const liczbyWypozyczen = daneWypozyczen.map(d => d.liczbaWypozyczen);
+
+        const ctx = document.getElementById('wypozyczeniaChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar', 
+            data: {
+                labels: etykiety,
+                datasets: [{
+                    label: 'Liczba wypożyczeń',
+                    data: liczbyWypozyczen,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Liczba wypożyczeń'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Miesiąc'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+}

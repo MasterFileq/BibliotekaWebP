@@ -1,0 +1,53 @@
+﻿@model IEnumerable<BibliotekaWeb.Models.Wypozyczenie>
+
+@{
+    ViewData["Title"] = "Wypożyczone książki";
+}
+
+<h1>Wypożyczone książki</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Tytuł</th>
+            <th>Autor</th>
+            <th>Tematyka</th>
+            <th>Data Wypożyczenia</th>
+            <th>Termin Zwrotu</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Ksiazka.Tytul</td>
+                <td>@item.Ksiazka.Autor</td>
+                <td>@item.Ksiazka.Tematyka</td>
+                <td>@item.DataWypozyczenia.ToShortDateString()</td>
+                <td>@item.TerminZwrotu.ToShortDateString()</td>
+                <td>
+                    <form asp-action="Przedluz"
+                          asp-route-id="@item.Id"
+                          method="post"
+                          style="display:inline;">
+                        <button type="submit" class="btn btn-primary btn-sm">Przedłuż (30 dni)</button>
+                    </form>
+                    <a asp-action="Zwroc"
+                       asp-route-id="@item.KsiazkaId"
+                       class="btn btn-warning btn-sm">Zwróć</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
