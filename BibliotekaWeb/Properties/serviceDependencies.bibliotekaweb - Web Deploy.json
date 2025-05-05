@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "mssql3": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/bibliotekaweb/providers/Microsoft.ServiceLinker/linkers/ConnectionStringsBibliotekaWebDb_F203ED65DD",
+      "secretStore": "AzureAppSettings",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Sql/servers/bibliotekadb/databases/bibliotekawebdb",
+      "type": "mssql.azure",
+      "connectionId": "ConnectionStrings:BibliotekaWebDb"
+    },
+    "mssql2": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/bibliotekaweb/providers/Microsoft.ServiceLinker/linkers/ConnectionStringsBibliotekaDB_A36745A552",
+      "secretStore": "AzureAppSettings",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Sql/servers/bibliotekadb/databases/bibliotekawebdb",
+      "type": "mssql.azure",
+      "connectionId": "ConnectionStrings:BibliotekaDB",
+      "dynamicId": null
+    },
+    "mssql1": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/bibliotekaweb/providers/Microsoft.ServiceLinker/linkers/ConnectionStringsDefaultConnection_28C2B70A2F",
+      "secretStore": "AzureAppSettings",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Sql/servers/bibliotekadb/databases/bibliotekadb",
+      "type": "mssql.azure",
+      "connectionId": "ConnectionStrings:DefaultConnection",
+      "dynamicId": null
+    }
+  }
+}

@@ -1,16 +1,22 @@
 {
   "dependencies": {
-    "mssql1": {
-      "type": "mssql",
-      "connectionId": "ConnectionStrings:DefaultConnection"
-    },
     "secrets1": {
       "type": "secrets",
       "dynamicId": null
     },
+    "mssql3": {
+      "type": "mssql",
+      "connectionId": "ConnectionStrings:BibliotekaWebDb"
+    },
     "mssql2": {
       "type": "mssql",
-      "connectionId": "ConnectionStrings:BibliotekaDB"
+      "connectionId": "ConnectionStrings:BibliotekaDB",
+      "dynamicId": null
+    },
+    "mssql1": {
+      "type": "mssql",
+      "connectionId": "ConnectionStrings:DefaultConnection",
+      "dynamicId": null
     }
   }
 }
