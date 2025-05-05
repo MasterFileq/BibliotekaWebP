@@ -6,56 +6,51 @@
 
 <h1>@ViewData["Title"]</h1>
 
-@if (User.IsInRole("Administrator"))
+@if (TempData["SuccessMessage"] != null)
 {
-    <a asp-action="Create" class="btn btn-primary">Dodaj Czytelnika</a>
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
 
-<table class="table">
+@if (User.IsInRole("Administrator"))
+{
+    <a asp-action="Create" class="btn btn-primary mb-3">Dodaj Czytelnika</a>
+}
+
+<table class="table table-striped">
     <thead>
         <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.First().User.UserName)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.First().User.Email)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.First().KsiazkaTytul)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.First().TerminZwrotu)
-            </th>
-            <th></th>
+            <th>@Html.DisplayNameFor(model => model.First().User.UserName)</th>
+            <th>@Html.DisplayNameFor(model => model.First().User.Email)</th>
+            <th>@Html.DisplayNameFor(model => model.First().KsiazkaTytul)</th>
+            <th>@Html.DisplayNameFor(model => model.First().TerminZwrotu)</th>
+            <th>Akcje</th>
         </tr>
     </thead>
     <tbody>
         @foreach (var item in Model)
         {
             <tr>
+                <td>@item.User.UserName</td>
+                <td>@item.User.Email</td>
+                <td>@item.KsiazkaTytul</td>
+                <td>@item.TerminZwrotu?.ToShortDateString()</td>
                 <td>
-                    @item.User.UserName
-                </td>
-                <td>
-                    @item.User.Email
-                </td>
-                <td>
-                    @item.KsiazkaTytul
-                </td>
-                <td>
-                    @item.TerminZwrotu?.ToShortDateString()
-                </td>
-                <td>
-
                     @if (User.IsInRole("Administrator"))
                     {
-                        <a asp-action="Details" asp-route-id="@item.User.Id" class="btn btn-info">Szczegóły</a>
-                        <a asp-action="Edit" asp-route-id="@item.User.Id" class="btn btn-warning">Edytuj</a>
-                        <a class="btn btn-secondary disabled" role="button" aria-disabled="true">Usuń</a>
+                        <a asp-action="Details" asp-route-id="@item.User.Id" class="btn btn-info btn-sm">Szczegóły</a>
+                        <a asp-action="Edit" asp-route-id="@item.User.Id" class="btn btn-warning btn-sm">Edytuj</a>
+                        <form asp-action="DeleteConfirmed" asp-route-id="@item.User.Id" method="post" style="display:inline;"
+                              onsubmit="return confirm('Czy na pewno chcesz usunąć tego czytelnika?');">
+                            <button type="submit" class="btn btn-danger btn-sm">Usuń</button>
+                        </form>
                     }
                     @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                     {
-                        <a class="btn btn-secondary disabled" role="button" asp-action="AssignBook" asp-route-czytelnikId="@item.User.Id" class="btn btn-primary">Przypisz Książkę</a>
+                        <a asp-action="AssignBook" asp-route-czytelnikId="@item.User.Id" class="btn btn-primary btn-sm">Przypisz Książkę</a>
                     }
                 </td>
             </tr>

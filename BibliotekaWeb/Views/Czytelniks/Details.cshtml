@@ -6,19 +6,26 @@
 
 <h1>Szczegóły Czytelnika</h1>
 
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
+
 <div>
     <h4>@Model.UserName</h4>
     <hr />
     <dl class="row">
-        <dt class="col-sm-2">
-            Email
-        </dt>
-        <dd class="col-sm-10">
-            @Model.Email
-        </dd>
+        <dt class="col-sm-2">Email</dt>
+        <dd class="col-sm-10">@Model.Email</dd>
+        <dt class="col-sm-2">Nazwa użytkownika</dt>
+        <dd class="col-sm-10">@Model.UserName</dd>
     </dl>
 </div>
-<div>
+<div class="mt-3">
     <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edytuj</a>
     <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
 </div>

@@ -4,31 +4,50 @@
     ViewData["Title"] = "Przypisz Książkę";
 }
 
-<h2>@ViewData["Title"] dla @Model.Email</h2>
+<h1>Przypisz Książkę dla @Model.Email</h1>
 
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
 @if (TempData["ErrorMessage"] != null)
 {
-    <div class="alert alert-danger" role="alert">
-        @TempData["ErrorMessage"]
-    </div>
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
 
-<form asp-action="AssignBook">
-    <div class="form-group">
-        <label asp-for="KsiazkaId" class="control-label">Wybierz Książkę</label>
-        <select asp-for="KsiazkaId" class="form-control" asp-items="@(new SelectList(Model.Ksiazki, "Id", "Tytul"))"></select>
-        <span asp-validation-for="KsiazkaId" class="text-danger"></span>
-    </div>
-    <div class="form-group">
-        <input type="hidden" asp-for="CzytelnikId" value="@Model.CzytelnikId" />
-        <input type="hidden" asp-for="Email" value="@Model.Email" />
-        <input type="submit" value="Przypisz" class="btn btn-primary" />
-    </div>
-</form>
+@if (Model.Ksiazki == null || !Model.Ksiazki.Any())
+{
+    <div class="alert alert-warning">
+        Brak dostępnych książek do wypożyczenia.
+        @if (User.IsInRole("Administrator"))
+        {
+            <a asp-controller="Ksiazki" asp-action="Create" class="alert-link">Dodaj nową książkę</a>
 
-<div>
-    <a asp-action="Index">Powrót do listy</a>
-</div>
+    }
+    </div>
+    <div>
+        <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+    </div>
+}
+else
+{
+    <form asp-action="AssignBook" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="form-group">
+            <label asp-for="KsiazkaId" class="control-label">Wybierz Książkę</label>
+            <select asp-for="KsiazkaId" class="form-control" asp-items="@(new SelectList(Model.Ksiazki, "Id", "Tytul"))" data-val="true" data-val-required="Proszę wybrać książkę." data-val-range="Proszę wybrać książkę." data-val-range-min="1">
+                <option value="">-- Wybierz książkę --</option>
+            </select>
+            <span asp-validation-for="KsiazkaId" class="text-danger"></span>
+        </div>
+        <div class="form-group mt-3">
+            <input type="hidden" asp-for="CzytelnikId" value="@Model.CzytelnikId" />
+            <input type="hidden" asp-for="Email" value="@Model.Email" />
+            <input type="submit" value="Przypisz" class="btn btn-primary" />
+            <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+        </div>
+    </form>
+}
 
 @section Scripts {
     @{

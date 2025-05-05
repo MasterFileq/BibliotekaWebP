@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace BibliotekaWeb.Controllers
 {
@@ -14,18 +18,20 @@ namespace BibliotekaWeb.Controllers
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
 
-        public CzytelniksController(ApplicationDbContext context, UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
+        public CzytelniksController(
+            ApplicationDbContext context,
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager)
         {
-            _context = context;
-            _userManager = userManager;
-            _roleManager = roleManager;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _roleManager = roleManager ?? throw new ArgumentNullException(nameof(roleManager));
         }
 
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Index()
         {
             var czytelnicy = await _userManager.GetUsersInRoleAsync("Czytelnik");
-
             var czytelnikViewModels = new List<CzytelnikViewModel>();
 
             foreach (var user in czytelnicy)
@@ -48,9 +54,47 @@ namespace BibliotekaWeb.Controllers
         }
 
         [Authorize(Roles = "Administrator")]
+        public IActionResult Create()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Administrator")]
+        public async Task<IActionResult> Create(RegisterViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "Nieprawidłowe dane formularza.";
+                return View(model);
+            }
+
+            var user = new IdentityUser { UserName = model.Email, Email = model.Email };
+            var result = await _userManager.CreateAsync(user, model.Password);
+
+            if (result.Succeeded)
+            {
+                await EnsureCzytelnikRoleExistsAsync();
+                await _userManager.AddToRoleAsync(user, "Czytelnik");
+
+                TempData["SuccessMessage"] = "Nowy czytelnik został dodany.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
+            }
+
+            TempData["ErrorMessage"] = "Nie udało się utworzyć nowego czytelnika.";
+            return View(model);
+        }
+
+        [Authorize(Roles = "Administrator")]
         public async Task<IActionResult> Details(string id)
         {
-            if (id == null)
+            if (string.IsNullOrEmpty(id))
             {
                 return NotFound();
             }
@@ -67,7 +111,7 @@ namespace BibliotekaWeb.Controllers
         [Authorize(Roles = "Administrator")]
         public async Task<IActionResult> Edit(string id)
         {
-            if (id == null)
+            if (string.IsNullOrEmpty(id))
             {
                 return NotFound();
             }
@@ -91,29 +135,36 @@ namespace BibliotekaWeb.Controllers
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                var user = await _userManager.FindByIdAsync(id);
-                if (user == null)
-                {
-                    return NotFound();
-                }
+                return View(model);
+            }
 
-                user.UserName = model.UserName;
-                user.Email = model.Email;
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound();
+            }
 
-                var result = await _userManager.UpdateAsync(user);
-                if (result.Succeeded)
-                {
-                    return RedirectToAction(nameof(Index));
-                }
-                else
-                {
-                    foreach (var error in result.Errors)
-                    {
-                        ModelState.AddModelError(string.Empty, error.Description);
-                    }
-                }
+            if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Email))
+            {
+                ModelState.AddModelError(string.Empty, "Nazwa użytkownika i email nie mogą być puste.");
+                return View(model);
+            }
+
+            user.UserName = model.UserName;
+            user.Email = model.Email;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                TempData["SuccessMessage"] = "Dane czytelnika zostały zaktualizowane.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
             }
 
             return View(model);
@@ -122,53 +173,87 @@ namespace BibliotekaWeb.Controllers
         [Authorize(Roles = "Administrator")]
         public async Task<IActionResult> Delete(string id)
         {
-            if (id == null)
+            if (string.IsNullOrEmpty(id))
             {
-                return NotFound();
+                TempData["ErrorMessage"] = "Nieprawidłowy identyfikator czytelnika.";
+                return RedirectToAction(nameof(Index));
             }
 
             var user = await _userManager.FindByIdAsync(id);
             if (user == null)
             {
-                return NotFound();
+                TempData["ErrorMessage"] = "Nie znaleziono czytelnika.";
+                return RedirectToAction(nameof(Index));
             }
 
             return View(user);
         }
-
-
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
-            if (id == null)
+            if (string.IsNullOrEmpty(id))
             {
-                return NotFound();
+                TempData["ErrorMessage"] = "Nieprawidłowy identyfikator czytelnika.";
+                return RedirectToAction(nameof(Index));
             }
 
             var user = await _userManager.FindByIdAsync(id);
             if (user == null)
             {
-                return NotFound();
+                TempData["ErrorMessage"] = "Nie znaleziono czytelnika.";
+                return RedirectToAction(nameof(Index));
             }
 
-            var result = await _userManager.DeleteAsync(user);
-            if (!result.Succeeded)
+            try
             {
-                foreach (var error in result.Errors)
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                var wypozyczenia = await _context.Wypozyczenie
+                    .Where(w => w.CzytelnikId == id)
+                    .Include(w => w.Ksiazka)
+                    .ToListAsync();
+
+                foreach (var wypozyczenie in wypozyczenia)
                 {
-                    ModelState.AddModelError(string.Empty, error.Description);
+                    if (wypozyczenie.Ksiazka != null)
+                    {
+                        wypozyczenie.Ksiazka.Dostepnosc = true;
+                        _context.Update(wypozyczenie.Ksiazka);
+                    }
                 }
-                return View("Delete", user);
+
+                if (wypozyczenia.Any())
+                {
+                    _context.Wypozyczenie.RemoveRange(wypozyczenia);
+                }
+
+                await _context.SaveChangesAsync();
+
+                var result = await _userManager.DeleteAsync(user);
+                if (!result.Succeeded)
+                {
+                    var errors = result.Errors.Select(e => e.Description).ToList();
+                    System.Diagnostics.Debug.WriteLine($"Błędy Identity: {string.Join("; ", errors)}");
+                    TempData["ErrorMessage"] = $"Błąd podczas usuwania czytelnika: {string.Join("; ", errors)}";
+                    await transaction.RollbackAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+
+                await transaction.CommitAsync();
+
+                TempData["SuccessMessage"] = "Czytelnik został pomyślnie usunięty.";
+                return RedirectToAction(nameof(Index));
             }
-
-            return RedirectToAction(nameof(Index));
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Błąd podczas usuwania czytelnika: {ex.Message}\nInnerException: {ex.InnerException?.Message}\nStackTrace: {ex.StackTrace}");
+                TempData["ErrorMessage"] = "Wystąpił błąd podczas usuwania czytelnika. Spróbuj ponownie.";
+                return RedirectToAction(nameof(Index));
+            }
         }
-
-
-
 
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> AssignBook(string czytelnikId)
@@ -197,12 +282,23 @@ namespace BibliotekaWeb.Controllers
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> AssignBook(WypozyczenieViewModel model)
         {
+            ModelState.Remove("Ksiazki");
+
             if (ModelState.IsValid)
             {
                 var czytelnik = await _userManager.FindByIdAsync(model.CzytelnikId);
                 if (czytelnik == null)
                 {
                     TempData["ErrorMessage"] = "Nie znaleziono czytelnika z podanym identyfikatorem.";
+                    model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
+                    return View(model);
+                }
+
+                var existingWypozyczenie = await _context.Wypozyczenie
+                    .AnyAsync(w => w.CzytelnikId == model.CzytelnikId && w.TerminZwrotu >= DateTime.Now);
+                if (existingWypozyczenie)
+                {
+                    TempData["ErrorMessage"] = "Czytelnik ma już wypożyczoną książkę.";
                     model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
                     return View(model);
                 }
@@ -224,52 +320,27 @@ namespace BibliotekaWeb.Controllers
                 };
 
                 _context.Add(wypozyczenie);
-
                 ksiazka.Dostepnosc = false;
                 _context.Update(ksiazka);
 
                 await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Książka została przypisana czytelnikowi.";
                 return RedirectToAction(nameof(Index));
             }
 
-            var errorMessages = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
-            TempData["ErrorMessage"] = string.Join(", ", errorMessages);
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            System.Diagnostics.Debug.WriteLine($"Validation errors: {string.Join("; ", errors)}");
+            TempData["ErrorMessage"] = string.Join("; ", errors) + " Proszę upewnić się, że wybrano książkę.";
             model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
             return View(model);
         }
 
-        [Authorize(Roles = "Administrator")]
-        public IActionResult Create()
+        private async Task EnsureCzytelnikRoleExistsAsync()
         {
-            return View();
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Administrator")]
-        public async Task<IActionResult> Create(RegisterViewModel model)
-        {
-            if (ModelState.IsValid)
+            if (!await _roleManager.RoleExistsAsync("Czytelnik"))
             {
-                var user = new IdentityUser { UserName = model.Email, Email = model.Email };
-                var result = await _userManager.CreateAsync(user, model.Password);
-                if (result.Succeeded)
-                {
-                    if (!await _roleManager.RoleExistsAsync("Czytelnik"))
-                    {
-                        await _roleManager.CreateAsync(new IdentityRole("Czytelnik"));
-                    }
-                    await _userManager.AddToRoleAsync(user, "Czytelnik");
-
-                    return RedirectToAction(nameof(Index));
-                }
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError(string.Empty, error.Description);
-                }
+                await _roleManager.CreateAsync(new IdentityRole("Czytelnik"));
             }
-
-            return View(model);
         }
     }
 }
