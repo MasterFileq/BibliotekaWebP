@@ -6,6 +6,11 @@
 
 <h1>Katalog książek</h1>
 
+@if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+{
+    <a asp-action="Create" class="btn btn-primary mt-2">Dodaj Nową Książkę</a>
+}
+
 <form asp-action="Katalog" method="get" class="mb-4">
     <div class="row">
         <div class="col-md-3">
