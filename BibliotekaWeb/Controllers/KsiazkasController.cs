@@ -19,7 +19,6 @@ namespace BibliotekaWeb.Controllers
             _userManager = userManager;
         }
 
-        // Katalog książek z filtrowaniem
         [Authorize(Roles = "Administrator, Bibliotekarz, Czytelnik")]
         public async Task<IActionResult> Katalog(string searchString, Tematyka? tematyka, string author, string isbn, bool? available)
         {
