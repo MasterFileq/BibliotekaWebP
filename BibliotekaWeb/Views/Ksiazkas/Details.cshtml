@@ -1,13 +1,22 @@
 ﻿@model BibliotekaWeb.Models.Ksiazka
 
 @{
-    ViewData["Title"] = "Details";
+    ViewData["Title"] = "Szczegóły książki";
 }
 
-<h1>Details</h1>
+<h1>Szczegóły książki</h1>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
 
 <div>
-    <h4>Ksiazka</h4>
+    <h4>@Model.Tytul</h4>
     <hr />
     <dl class="row">
         <dt class="col-sm-2">
@@ -29,17 +38,33 @@
             @Html.DisplayFor(model => model.ISBN)
         </dd>
         <dt class="col-sm-2">
-            @Html.DisplayNameFor(model => model.Dostepnosc)
+            @Html.DisplayNameFor(model => model.IloscEgzemplarzy)
         </dt>
         <dd class="col-sm-10">
-            @Html.DisplayFor(model => model.Dostepnosc)
+            @Html.DisplayFor(model => model.IloscEgzemplarzy)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.DostepneEgzemplarze)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.DostepneEgzemplarze)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Tematyka)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Tematyka)
         </dd>
     </dl>
 </div>
-<div>
-    <a asp-action="Katalog">Back to List</a>
+<div class="mt-3">
+    <a asp-action="Katalog" class="btn btn-secondary">Powrót do listy</a>
     @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
     {
-        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edit</a>
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edytuj</a>
+        if (Model.DostepneEgzemplarze < Model.IloscEgzemplarzy)
+        {
+            <a asp-action="ZwrocByAdmin" asp-route-id="@Model.Id" class="btn btn-primary">Zwróć (Admin)</a>
+        }
     }
 </div>

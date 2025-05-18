@@ -6,7 +6,18 @@
 
 <h1>Dodaj książkę</h1>
 
-<form asp-action="Create">
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
+
+<form asp-action="Create" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
     <div class="form-group">
         <label asp-for="Tytul" class="control-label"></label>
         <input asp-for="Tytul" class="form-control" />
@@ -26,31 +37,24 @@
     </div>
 
     <div class="form-group">
-        <label asp-for="Dostepnosc" class="control-label"></label>
-        <select asp-for="Dostepnosc" class="form-control">
-            <option value="true">Dostępna</option>
-            <option value="false">Niedostępna</option>
-        </select>
-        <span asp-validation-for="Dostepnosc" class="text-danger"></span>
+        <label asp-for="IloscEgzemplarzy" class="control-label"></label>
+        <input asp-for="IloscEgzemplarzy" class="form-control" type="number" min="1" value="1" />
+        <span asp-validation-for="IloscEgzemplarzy" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="Tematyka" class="control-label"></label>
-        <select asp-for="Tematyka"
-                class="form-control"
-                asp-items="Html.GetEnumSelectList<BibliotekaWeb.Models.Tematyka>()">
+        <select asp-for="Tematyka" class="form-control" asp-items="Html.GetEnumSelectList<BibliotekaWeb.Models.Tematyka>()">
+            <option value="">-- Wybierz tematykę --</option>
         </select>
         <span asp-validation-for="Tematyka" class="text-danger"></span>
     </div>
 
-    <div class="form-group">
+    <div class="form-group mt-3">
         <input type="submit" value="Dodaj" class="btn btn-primary" />
+        <a asp-action="Katalog" class="btn btn-secondary">Powrót do listy</a>
     </div>
 </form>
-
-<div>
-    <a asp-action="Katalog" class="btn btn-secondary">Back to List</a>
-</div>
 
 @section Scripts {
     @{

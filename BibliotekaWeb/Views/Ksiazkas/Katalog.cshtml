@@ -8,7 +8,7 @@
 
 @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
 {
-    <a asp-action="Create" class="btn btn-primary mt-2">Dodaj Nową Książkę</a>
+    <a asp-action="Create" class="btn btn-primary mt-2">Dodaj nową książkę</a>
 }
 
 <form asp-action="Katalog" method="get" class="mb-4">
@@ -23,7 +23,7 @@
                 <option value="">Wszystkie</option>
                 @foreach (var temat in ViewBag.Tematyki as List<BibliotekaWeb.Models.Tematyka>)
                 {
-                    <option value="@temat">@temat</option>
+                    <option value="@temat" selected="@(ViewData["CurrentTematyka"]?.ToString() == temat.ToString() ? "selected" : null)">@temat</option>
                 }
             </select>
         </div>
@@ -39,8 +39,8 @@
             <label for="available">Dostępność:</label>
             <select name="available" class="form-control">
                 <option value="">Wszystkie</option>
-                <option value="true">Dostępne</option>
-                <option value="false">Niedostępne</option>
+                <option value="true" selected="@(ViewData["CurrentAvailable"]?.ToString() == "true" ? "selected" : null)">Dostępne (egzemplarze > 0)</option>
+                <option value="false" selected="@(ViewData["CurrentAvailable"]?.ToString() == "false" ? "selected" : null)">Niedostępne (egzemplarze = 0)</option>
             </select>
         </div>
         <div class="col-md-3 mt-4">
@@ -56,40 +56,43 @@
             <th>Autor</th>
             <th>ISBN</th>
             <th>Tematyka</th>
-            <th>Dostępność</th>
+            <th>Dostępne egzemplarze</th>
+            <th>Ilość egzemplarzy</th>
             <th>Akcje</th>
         </tr>
     </thead>
     <tbody>
-        @foreach (var item in Model)
+        @if (!Model.Any())
         {
             <tr>
-                <td>@item.Tytul</td>
-                <td>@item.Autor</td>
-                <td>@item.ISBN</td>
-                <td>@item.Tematyka</td>
-                <td>@(item.Dostepnosc ? "Dostępna" : "Niedostępna")</td>
-                <td>
-                    <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Szczegóły</a>
-                    @if (item.Dostepnosc)
-                    {
-                        <a asp-action="Wypozycz" asp-route-id="@item.Id" class="btn btn-success btn-sm">Wypożycz</a>
-                    }
-                    else if (User.IsInRole("Czytelnik"))
-                    {
-                        <a asp-action="Zwroc" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć</a>
-                    }
-                    @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
-                    {
-                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edytuj</a>
-                        <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Usuń</a>
-                        if (!item.Dostepnosc)
-                        {
-                            <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć (Admin)</a>
-                        }
-                    }
-                </td>
+                <td colspan="7" class="text-center">Brak książek spełniających kryteria.</td>
             </tr>
+        }
+        else
+        {
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>@item.Tytul</td>
+                    <td>@item.Autor</td>
+                    <td>@item.ISBN</td>
+                    <td>@item.Tematyka</td>
+                    <td>@item.DostepneEgzemplarze</td>
+                    <td>@item.IloscEgzemplarzy</td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Szczegóły</a>
+                        @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+                        {
+                            <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edytuj</a>
+                            <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Usuń</a>
+                            if (item.DostepneEgzemplarze < item.IloscEgzemplarzy)
+                            {
+                                <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć (Admin)</a>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
         }
     </tbody>
 </table>

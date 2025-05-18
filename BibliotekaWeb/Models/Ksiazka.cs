@@ -27,9 +27,13 @@ namespace BibliotekaWeb.Models
         [Display(Name = "ISBN")]
         public string ISBN { get; set; }
 
-        [Required(ErrorMessage = "Dostępność jest wymagana.")]
-        [Display(Name = "Dostępność")]
-        public bool Dostepnosc { get; set; }
+        [Required(ErrorMessage = "Ilość egzemplarzy jest wymagana.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Ilość egzemplarzy musi być większa od 0.")]
+        [Display(Name = "Ilość egzemplarzy")]
+        public int IloscEgzemplarzy { get; set; }
+
+        [Display(Name = "Dostępne egzemplarze")]
+        public int DostepneEgzemplarze { get; set; } // Nowe pole
 
         [Required(ErrorMessage = "Tematyka jest wymagana.")]
         [Display(Name = "Tematyka")]

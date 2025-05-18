@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BibliotekaWeb.Controllers
 {
@@ -17,38 +18,71 @@ namespace BibliotekaWeb.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly ILogger<CzytelniksController> _logger;
 
         public CzytelniksController(
             ApplicationDbContext context,
             UserManager<IdentityUser> userManager,
-            RoleManager<IdentityRole> roleManager)
+            RoleManager<IdentityRole> roleManager,
+            ILogger<CzytelniksController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _roleManager = roleManager ?? throw new ArgumentNullException(nameof(roleManager));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string searchUserName, string searchEmail, int? minWypozyczenia, int? maxWypozyczenia)
         {
             var czytelnicy = await _userManager.GetUsersInRoleAsync("Czytelnik");
             var czytelnikViewModels = new List<CzytelnikViewModel>();
 
-            foreach (var user in czytelnicy)
+            var wypozyczenia = await _context.Wypozyczenie
+                .Where(w => czytelnicy.Select(u => u.Id).Contains(w.CzytelnikId) && !w.CzyZwrocona)
+                .GroupBy(w => w.CzytelnikId)
+                .Select(g => new { CzytelnikId = g.Key, Ilosc = g.Count() })
+                .ToDictionaryAsync(k => k.CzytelnikId, v => v.Ilosc);
+
+            // Filtrowanie czytelników
+            var filteredCzytelnicy = czytelnicy.AsQueryable();
+            if (!string.IsNullOrEmpty(searchUserName))
             {
-                var wypozyczenie = await _context.Wypozyczenie
-                    .Include(w => w.Ksiazka)
-                    .Where(w => w.CzytelnikId == user.Id)
-                    .OrderByDescending(w => w.DataWypozyczenia)
-                    .FirstOrDefaultAsync();
+                filteredCzytelnicy = filteredCzytelnicy.Where(u => u.UserName.Contains(searchUserName, StringComparison.OrdinalIgnoreCase));
+                ViewData["searchUserName"] = searchUserName;
+            }
+
+            if (!string.IsNullOrEmpty(searchEmail))
+            {
+                filteredCzytelnicy = filteredCzytelnicy.Where(u => u.Email.Contains(searchEmail, StringComparison.OrdinalIgnoreCase));
+                ViewData["searchEmail"] = searchEmail;
+            }
+
+            foreach (var user in filteredCzytelnicy)
+            {
+                var iloscWypozyczen = wypozyczenia.ContainsKey(user.Id) ? wypozyczenia[user.Id] : 0;
+
+                // Filtrowanie po liczbie wypożyczeń
+                if (minWypozyczenia.HasValue && iloscWypozyczen < minWypozyczenia.Value)
+                    continue;
+                if (maxWypozyczenia.HasValue && iloscWypozyczen > maxWypozyczenia.Value)
+                    continue;
 
                 czytelnikViewModels.Add(new CzytelnikViewModel
                 {
                     User = user,
-                    KsiazkaTytul = wypozyczenie?.Ksiazka?.Tytul,
-                    TerminZwrotu = wypozyczenie?.TerminZwrotu
+                    IloscWypozyczonychKsiazek = iloscWypozyczen
                 });
             }
+
+            // Zachowanie wartości filtrów
+            if (minWypozyczenia.HasValue)
+                ViewData["minWypozyczenia"] = minWypozyczenia.Value.ToString();
+            if (maxWypozyczenia.HasValue)
+                ViewData["maxWypozyczenia"] = maxWypozyczenia.Value.ToString();
+
+            _logger.LogInformation("Załadowano {Count} czytelników z filtrami: UserName={UserName}, Email={Email}, MinWypozyczenia={Min}, MaxWypozyczenia={Max}",
+                czytelnikViewModels.Count, searchUserName, searchEmail, minWypozyczenia, maxWypozyczenia);
 
             return View(czytelnikViewModels);
         }
@@ -212,7 +246,7 @@ namespace BibliotekaWeb.Controllers
                 using var transaction = await _context.Database.BeginTransactionAsync();
 
                 var wypozyczenia = await _context.Wypozyczenie
-                    .Where(w => w.CzytelnikId == id)
+                    .Where(w => w.CzytelnikId == id && !w.CzyZwrocona)
                     .Include(w => w.Ksiazka)
                     .ToListAsync();
 
@@ -220,14 +254,11 @@ namespace BibliotekaWeb.Controllers
                 {
                     if (wypozyczenie.Ksiazka != null)
                     {
-                        wypozyczenie.Ksiazka.Dostepnosc = true;
+                        wypozyczenie.Ksiazka.DostepneEgzemplarze++;
+                        wypozyczenie.CzyZwrocona = true;
                         _context.Update(wypozyczenie.Ksiazka);
+                        _context.Update(wypozyczenie);
                     }
-                }
-
-                if (wypozyczenia.Any())
-                {
-                    _context.Wypozyczenie.RemoveRange(wypozyczenia);
                 }
 
                 await _context.SaveChangesAsync();
@@ -236,7 +267,7 @@ namespace BibliotekaWeb.Controllers
                 if (!result.Succeeded)
                 {
                     var errors = result.Errors.Select(e => e.Description).ToList();
-                    System.Diagnostics.Debug.WriteLine($"Błędy Identity: {string.Join("; ", errors)}");
+                    _logger.LogError("Błędy Identity przy usuwaniu użytkownika {UserId}: {Errors}", id, string.Join("; ", errors));
                     TempData["ErrorMessage"] = $"Błąd podczas usuwania czytelnika: {string.Join("; ", errors)}";
                     await transaction.RollbackAsync();
                     return RedirectToAction(nameof(Index));
@@ -249,18 +280,45 @@ namespace BibliotekaWeb.Controllers
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Błąd podczas usuwania czytelnika: {ex.Message}\nInnerException: {ex.InnerException?.Message}\nStackTrace: {ex.StackTrace}");
+                _logger.LogError(ex, "Błąd podczas usuwania czytelnika {UserId}", id);
                 TempData["ErrorMessage"] = "Wystąpił błąd podczas usuwania czytelnika. Spróbuj ponownie.";
                 return RedirectToAction(nameof(Index));
             }
         }
 
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> AssignBook(string czytelnikId)
+        public async Task<IActionResult> AssignBook(string czytelnikId, string searchTitle, string searchAuthor, string searchISBN, Tematyka? tematyka)
         {
-            var ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
-            var czytelnik = await _userManager.FindByIdAsync(czytelnikId);
+            var ksiazki = _context.Ksiazka
+                .Where(k => k.DostepneEgzemplarze > 0)
+                .AsQueryable();
 
+            // Filtrowanie książek
+            if (!string.IsNullOrEmpty(searchTitle))
+            {
+                ksiazki = ksiazki.Where(k => k.Tytul.Contains(searchTitle));
+                ViewData["searchTitle"] = searchTitle;
+            }
+
+            if (!string.IsNullOrEmpty(searchAuthor))
+            {
+                ksiazki = ksiazki.Where(k => k.Autor.Contains(searchAuthor));
+                ViewData["searchAuthor"] = searchAuthor;
+            }
+
+            if (!string.IsNullOrEmpty(searchISBN))
+            {
+                ksiazki = ksiazki.Where(k => k.ISBN.Contains(searchISBN));
+                ViewData["searchISBN"] = searchISBN;
+            }
+
+            if (tematyka.HasValue)
+            {
+                ksiazki = ksiazki.Where(k => k.Tematyka == tematyka.Value);
+                ViewData["tematyka"] = tematyka.ToString();
+            }
+
+            var czytelnik = await _userManager.FindByIdAsync(czytelnikId);
             if (czytelnik == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono czytelnika.";
@@ -271,9 +329,12 @@ namespace BibliotekaWeb.Controllers
             {
                 CzytelnikId = czytelnikId,
                 Email = czytelnik.Email,
-                Ksiazki = ksiazki
+                Ksiazki = await ksiazki.ToListAsync(),
+                Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList()
             };
 
+            _logger.LogInformation("Załadowano {Count} książek dla czytelnika {CzytelnikId} z filtrami: Tytuł={Title}, Autor={Author}, ISBN={ISBN}, Tematyka={Tematyka}",
+                model.Ksiazki.Count, czytelnikId, searchTitle, searchAuthor, searchISBN, tematyka?.ToString());
             return View(model);
         }
 
@@ -283,6 +344,7 @@ namespace BibliotekaWeb.Controllers
         public async Task<IActionResult> AssignBook(WypozyczenieViewModel model)
         {
             ModelState.Remove("Ksiazki");
+            ModelState.Remove("Tematyki");
 
             if (ModelState.IsValid)
             {
@@ -290,24 +352,27 @@ namespace BibliotekaWeb.Controllers
                 if (czytelnik == null)
                 {
                     TempData["ErrorMessage"] = "Nie znaleziono czytelnika z podanym identyfikatorem.";
-                    model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
+                    model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
+                    model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
                     return View(model);
                 }
 
                 var existingWypozyczenie = await _context.Wypozyczenie
-                    .AnyAsync(w => w.CzytelnikId == model.CzytelnikId && w.TerminZwrotu >= DateTime.Now);
+                    .AnyAsync(w => w.CzytelnikId == model.CzytelnikId && w.KsiazkaId == model.KsiazkaId && !w.CzyZwrocona);
                 if (existingWypozyczenie)
                 {
-                    TempData["ErrorMessage"] = "Czytelnik ma już wypożyczoną książkę.";
-                    model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
+                    TempData["ErrorMessage"] = "Czytelnik ma już wypożyczoną tę książkę.";
+                    model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
+                    model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
                     return View(model);
                 }
 
                 var ksiazka = await _context.Ksiazka.FindAsync(model.KsiazkaId);
-                if (ksiazka == null || !ksiazka.Dostepnosc)
+                if (ksiazka == null || ksiazka.DostepneEgzemplarze <= 0)
                 {
                     TempData["ErrorMessage"] = "Wybrana książka jest niedostępna.";
-                    model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
+                    model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
+                    model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
                     return View(model);
                 }
 
@@ -316,22 +381,39 @@ namespace BibliotekaWeb.Controllers
                     KsiazkaId = model.KsiazkaId,
                     CzytelnikId = model.CzytelnikId,
                     DataWypozyczenia = DateTime.Now,
-                    TerminZwrotu = DateTime.Now.AddDays(14)
+                    TerminZwrotu = DateTime.Now.AddDays(14),
+                    Kara = 0,
+                    LiczbaPrzedluzen = 0,
+                    CzyZwrocona = false
                 };
 
-                _context.Add(wypozyczenie);
-                ksiazka.Dostepnosc = false;
-                _context.Update(ksiazka);
+                ksiazka.DostepneEgzemplarze--;
 
-                await _context.SaveChangesAsync();
-                TempData["SuccessMessage"] = "Książka została przypisana czytelnikowi.";
-                return RedirectToAction(nameof(Index));
+                try
+                {
+                    using var transaction = await _context.Database.BeginTransactionAsync();
+                    _context.Wypozyczenie.Add(wypozyczenie);
+                    _context.Update(ksiazka);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    TempData["SuccessMessage"] = "Książka została przypisana czytelnikowi.";
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (DbUpdateException ex)
+                {
+                    _logger.LogError(ex, "Błąd podczas zapisywania wypożyczenia dla czytelnika {CzytelnikId}, książki {KsiazkaId}", model.CzytelnikId, model.KsiazkaId);
+                    TempData["ErrorMessage"] = "Wystąpił błąd podczas przypisywania książki. Spróbuj ponownie.";
+                    model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
+                    model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
+                    return View(model);
+                }
             }
 
             var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
-            System.Diagnostics.Debug.WriteLine($"Validation errors: {string.Join("; ", errors)}");
+            _logger.LogWarning("Błędy walidacji przy przypisywaniu książki: {Errors}", string.Join("; ", errors));
             TempData["ErrorMessage"] = string.Join("; ", errors) + " Proszę upewnić się, że wybrano książkę.";
-            model.Ksiazki = await _context.Ksiazka.Where(k => k.Dostepnosc).ToListAsync();
+            model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
+            model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
             return View(model);
         }
 

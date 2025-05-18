@@ -4,6 +4,7 @@ using BibliotekaWeb.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BibliotekaWeb.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250518115727_UpdateKsiazkaModel")]
+    partial class UpdateKsiazkaModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -101,9 +104,6 @@ namespace BibliotekaWeb.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("CzyZwrocona")
-                        .HasColumnType("bit");
-
                     b.Property<string>("CzytelnikId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -117,11 +117,11 @@ namespace BibliotekaWeb.Data.Migrations
                     b.Property<int>("KsiazkaId")
                         .HasColumnType("int");
 
-                    b.Property<int>("LiczbaPrzedluzen")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("TerminZwrotu")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

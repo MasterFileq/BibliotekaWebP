@@ -8,11 +8,64 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div style="width: 100%; max-width: 600px; margin: 20px 0;">
-    <canvas id="wypozyczeniaChart"></canvas>
+<!-- Formularz filtrowania -->
+<form asp-action="Index" method="get" class="mb-4">
+    <div class="row">
+        <div class="col-md-3">
+            <label for="searchTitle">Tytuł książki:</label>
+            <input type="text" name="searchTitle" class="form-control" value="@ViewData["searchTitle"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="searchEmail">Email czytelnika:</label>
+            <input type="text" name="searchEmail" class="form-control" value="@ViewData["searchEmail"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="startDate">Data od:</label>
+            <input type="date" name="startDate" class="form-control" value="@ViewData["startDate"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="endDate">Data do:</label>
+            <input type="date" name="endDate" class="form-control" value="@ViewData["endDate"]" />
+        </div>
+        <div class="col-md-3 mt-4">
+            <button type="submit" class="btn btn-primary">Filtruj</button>
+        </div>
+    </div>
+</form>
+
+<!-- Styl dla wykresów -->
+<style>
+    .chart-container {
+        position: relative;
+        height: 300px; 
+        width: 100%;
+    }
+
+    canvas {
+        max-height: 300px; 
+        width: 100% !important; 
+    }
+</style>
+
+<!-- Wykresy obok siebie -->
+<div class="row mb-4">
+    <!-- Wykres bieżących wypożyczeń -->
+    <div class="col-md-6">
+        <h4>Bieżące wypożyczenia (miesięczne)</h4>
+        <div class="chart-container">
+            <canvas id="biezaceWypozyczeniaChart"></canvas>
+        </div>
+    </div>
+    <!-- Wykres wypożyczeń z ostatnich 30 dni -->
+    <div class="col-md-6">
+        <h4>Wypożyczenia z ostatnich 30 dni (miesięczne)</h4>
+        <div class="chart-container">
+            <canvas id="wypozyczeniaOstatnie30DniChart"></canvas>
+        </div>
+    </div>
 </div>
 
-<table class="table">
+<table class="table table-striped">
     <thead>
         <tr>
             <th>Tytuł</th>
@@ -21,38 +74,75 @@
             <th>Data Wypożyczenia</th>
             <th>Termin Zwrotu</th>
             <th>Kara</th>
+            <th>Akcje</th>
         </tr>
     </thead>
     <tbody>
-        @foreach (var item in Model)
+        @if (!Model.Any())
         {
             <tr>
-                <td>@item.Ksiazka.Tytul</td>
-                <td>@item.Ksiazka.Autor</td>
-                <td>@item.Czytelnik.Email</td>
-                <td>@item.DataWypozyczenia.ToShortDateString()</td>
-                <td>@item.TerminZwrotu.ToShortDateString()</td>
-                <td>@item.Kara.ToString("C")</td>
+                <td colspan="7" class="text-center">Brak aktywnych wypożyczeń do wyświetlenia.</td>
             </tr>
+        }
+        else
+        {
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>@item.Ksiazka.Tytul</td>
+                    <td>@item.Ksiazka.Autor</td>
+                    <td>@item.Czytelnik.Email</td>
+                    <td>@item.DataWypozyczenia.ToString("dd.MM.yyyy")</td>
+                    <td>@item.TerminZwrotu.ToString("dd.MM.yyyy")</td>
+                    <td>@item.Kara.ToString("C")</td>
+                    <td>
+                        @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+                        {
+                            <form asp-controller="Ksiazkas" asp-action="ZwrocByAdmin" asp-route-id="@item.KsiazkaId" method="post" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz zwrócić tę książkę?');">
+                                <button type="submit" class="btn btn-danger btn-sm">Zwróć</button>
+                            </form>
+                            <form asp-controller="Ksiazkas" asp-action="PrzedluzByAdmin" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz przedłużyć wypożyczenie o 30 dni?');">
+                                <button type="submit" class="btn btn-primary btn-sm">Przedłuż</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
         }
     </tbody>
 </table>
 
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
+
 @section Scripts {
     <script>
-        const daneWypozyczen = @Html.Raw(Json.Serialize(ViewBag.WypozyczeniaPoMiesiacach));
+        // Dane dla wykresów
+        const daneBiezace = @Html.Raw(Json.Serialize(ViewBag.BiezaceWypozyczenia));
+        const daneOstatnie30 = @Html.Raw(Json.Serialize(ViewBag.WypozyczeniaOstatnie30Dni));
 
-        const etykiety = daneWypozyczen.map(d => d.miesiac);
-        const liczbyWypozyczen = daneWypozyczen.map(d => d.liczbaWypozyczen);
+        // Logowanie danych w konsoli przeglądarki
+        console.log("Bieżące wypożyczenia:", daneBiezace);
+        console.log("Wypożyczenia ostatnie 30 dni:", daneOstatnie30);
 
-        const ctx = document.getElementById('wypozyczeniaChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'bar', 
+        // Wykres bieżących wypożyczeń
+        const etykietyBiezace = daneBiezace.map(d => d.miesiac);
+        const liczbyBiezace = daneBiezace.map(d => d.liczbaWypozyczen);
+
+        const ctxBiezace = document.getElementById('biezaceWypozyczeniaChart').getContext('2d');
+        new Chart(ctxBiezace, {
+            type: 'bar',
             data: {
-                labels: etykiety,
+                labels: etykietyBiezace,
                 datasets: [{
-                    label: 'Liczba wypożyczeń',
-                    data: liczbyWypozyczen,
+                    label: 'Liczba bieżących wypożyczeń',
+                    data: liczbyBiezace,
                     backgroundColor: 'rgba(54, 162, 235, 0.5)',
                     borderColor: 'rgba(54, 162, 235, 1)',
                     borderWidth: 1
@@ -60,18 +150,48 @@
             },
             options: {
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Liczba wypożyczeń'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Miesiąc'
-                        }
+                    y: { beginAtZero: true, title: { display: true, text: 'Liczba wypożyczeń' } },
+                    x: { title: { display: true, text: 'Miesiąc' } }
+                },
+                responsive: true,
+                maintainAspectRatio: false, 
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                }
+            }
+        });
+
+        // Wykres wypożyczeń z ostatnich 30 dni
+        const etykietyOstatnie30 = daneOstatnie30.map(d => d.miesiac);
+        const liczbyOstatnie30 = daneOstatnie30.map(d => d.liczbaWypozyczen);
+
+        const ctxOstatnie30 = document.getElementById('wypozyczeniaOstatnie30DniChart').getContext('2d');
+        new Chart(ctxOstatnie30, {
+            type: 'bar',
+            data: {
+                labels: etykietyOstatnie30,
+                datasets: [{
+                    label: 'Liczba wypożyczeń (ostatnie 30 dni)',
+                    data: liczbyOstatnie30,
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Liczba wypożyczeń' } },
+                    x: { title: { display: true, text: 'Miesiąc' } }
+                },
+                responsive: true,
+                maintainAspectRatio: false, 
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
                     }
                 }
             }

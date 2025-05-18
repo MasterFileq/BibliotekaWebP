@@ -1,10 +1,78 @@
 ﻿@model IEnumerable<BibliotekaWeb.Models.CzytelnikViewModel>
 
 @{
-    ViewData["Title"] = "Lista Czytelników";
+    ViewData["Title"] = "Czytelnicy";
 }
 
-<h1>@ViewData["Title"]</h1>
+<h1>Czytelnicy</h1>
+
+<!-- Formularz filtrowania -->
+<form asp-action="Index" method="get" class="mb-4">
+    <div class="row">
+        <div class="col-md-3">
+            <label for="searchUserName">Nazwa użytkownika:</label>
+            <input type="text" name="searchUserName" class="form-control" value="@ViewData["searchUserName"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="searchEmail">Email:</label>
+            <input type="text" name="searchEmail" class="form-control" value="@ViewData["searchEmail"]" />
+        </div>
+        <div class="col-md-2">
+            <label for="minWypozyczenia">Min. wypożyczeń:</label>
+            <input type="number" name="minWypozyczenia" class="form-control" value="@ViewData["minWypozyczenia"]" min="0" />
+        </div>
+        <div class="col-md-2">
+            <label for="maxWypozyczenia">Maks. wypożyczeń:</label>
+            <input type="number" name="maxWypozyczenia" class="form-control" value="@ViewData["maxWypozyczenia"]" min="0" />
+        </div>
+        <div class="col-md-2 mt-4">
+            <button type="submit" class="btn btn-primary">Filtruj</button>
+            <a asp-action="Index" class="btn btn-secondary">Wyczyść</a>
+        </div>
+    </div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nazwa użytkownika</th>
+            <th>Email</th>
+            <th>Ilość wypożyczonych książek</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (!Model.Any())
+        {
+            <tr>
+                <td colspan="4" class="text-center">Brak czytelników do wyświetlenia.</td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var czytelnik in Model)
+            {
+                <tr>
+                    <td>@czytelnik.User.UserName</td>
+                    <td>@czytelnik.User.Email</td>
+                    <td>@czytelnik.IloscWypozyczonychKsiazek</td>
+                    <td>
+                        @if (User.IsInRole("Administrator"))
+                        {
+                            <a asp-action="Details" asp-route-id="@czytelnik.User.Id" class="btn btn-info btn-sm">Szczegóły</a>
+                            <a asp-action="Edit" asp-route-id="@czytelnik.User.Id" class="btn btn-warning btn-sm">Edytuj</a>
+                            <a asp-action="Delete" asp-route-id="@czytelnik.User.Id" class="btn btn-danger btn-sm">Usuń</a>
+                        }
+                        @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+                        {
+                            <a asp-action="AssignBook" asp-route-czytelnikId="@czytelnik.User.Id" class="btn btn-primary btn-sm">Przypisz książkę</a>
+                        }
+                    </td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
 
 @if (TempData["SuccessMessage"] != null)
 {
@@ -14,46 +82,3 @@
 {
     <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
-
-@if (User.IsInRole("Administrator"))
-{
-    <a asp-action="Create" class="btn btn-primary mb-3">Dodaj Czytelnika</a>
-}
-
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>@Html.DisplayNameFor(model => model.First().User.UserName)</th>
-            <th>@Html.DisplayNameFor(model => model.First().User.Email)</th>
-            <th>@Html.DisplayNameFor(model => model.First().KsiazkaTytul)</th>
-            <th>@Html.DisplayNameFor(model => model.First().TerminZwrotu)</th>
-            <th>Akcje</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model)
-        {
-            <tr>
-                <td>@item.User.UserName</td>
-                <td>@item.User.Email</td>
-                <td>@item.KsiazkaTytul</td>
-                <td>@item.TerminZwrotu?.ToShortDateString()</td>
-                <td>
-                    @if (User.IsInRole("Administrator"))
-                    {
-                        <a asp-action="Details" asp-route-id="@item.User.Id" class="btn btn-info btn-sm">Szczegóły</a>
-                        <a asp-action="Edit" asp-route-id="@item.User.Id" class="btn btn-warning btn-sm">Edytuj</a>
-                        <form asp-action="DeleteConfirmed" asp-route-id="@item.User.Id" method="post" style="display:inline;"
-                              onsubmit="return confirm('Czy na pewno chcesz usunąć tego czytelnika?');">
-                            <button type="submit" class="btn btn-danger btn-sm">Usuń</button>
-                        </form>
-                    }
-                    @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
-                    {
-                        <a asp-action="AssignBook" asp-route-czytelnikId="@item.User.Id" class="btn btn-primary btn-sm">Przypisz Książkę</a>
-                    }
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>

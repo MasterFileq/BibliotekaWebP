@@ -6,7 +6,6 @@
 
 <h1>Lista Książek</h1>
 
-
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">
@@ -25,13 +24,13 @@
 
 <form asp-action="Index" method="get" class="form-inline mb-3">
     <div class="input-group mb-3">
-        <input type="text" name="searchString" class="form-control" placeholder="Tytuł" aria-label="Tytuł" />
-        <input type="text" name="author" class="form-control" placeholder="Autor" aria-label="Autor" />
-        <input type="text" name="isbn" class="form-control" placeholder="ISBN" aria-label="ISBN" />
+        <input type="text" name="searchString" class="form-control" placeholder="Tytuł" aria-label="Tytuł" value="@ViewData["searchString"]" />
+        <input type="text" name="author" class="form-control" placeholder="Autor" aria-label="Autor" value="@ViewData["author"]" />
+        <input type="text" name="isbn" class="form-control" placeholder="ISBN" aria-label="ISBN" value="@ViewData["isbn"]" />
         <select name="available" class="form-control" aria-label="Dostępność">
-            <option value="">Dostępność</option>
-            <option value="true">Dostępne</option>
-            <option value="false">Niedostępne</option>
+            <option value="">Wszystkie</option>
+            <option value="true">Dostępne (egzemplarze > 0)</option>
+            <option value="false">Niedostępne (egzemplarze = 0)</option>
         </select>
         <div class="input-group-append">
             <button type="submit" class="btn btn-primary">Szukaj</button>
@@ -46,46 +45,57 @@
                 <th>@Html.DisplayNameFor(model => model.First().Tytul)</th>
                 <th>@Html.DisplayNameFor(model => model.First().Autor)</th>
                 <th>@Html.DisplayNameFor(model => model.First().ISBN)</th>
-                <th>@Html.DisplayNameFor(model => model.First().Dostepnosc)</th>
+                <th>Dostępne egzemplarze</th>
+                <th>Ilość egzemplarzy</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var item in Model)
+            @if (!Model.Any())
             {
                 <tr>
-                    <td>@Html.DisplayFor(modelItem => item.Tytul)</td>
-                    <td>@Html.DisplayFor(modelItem => item.Autor)</td>
-                    <td>@Html.DisplayFor(modelItem => item.ISBN)</td>
-                    <td>@Html.DisplayFor(modelItem => item.Dostepnosc)</td>
-                    <td>
-                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info">Szczegóły</a>
-                        @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
-                        {
-                            <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning">Edytuj</a>
-                            <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger">Usuń</a>
-                        }
-                        @if (item.Dostepnosc)
-                        {
-                            <a asp-action="Wypozycz" asp-route-id="@item.Id" class="btn btn-success">Wypożycz</a>
-                        }
-                        else
-                        {
+                    <td colspan="6" class="text-center">Brak książek spełniających kryteria.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@Html.DisplayFor(modelItem => item.Tytul)</td>
+                        <td>@Html.DisplayFor(modelItem => item.Autor)</td>
+                        <td>@Html.DisplayFor(modelItem => item.ISBN)</td>
+                        <td>@item.DostepneEgzemplarze</td>
+                        <td>@item.IloscEgzemplarzy</td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Szczegóły</a>
                             @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                             {
-                                <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-primary">Zwróć</a>
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Edytuj</a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Usuń</a>
                             }
-                            else if (User.Identity.IsAuthenticated)
+                            @if (item.DostepneEgzemplarze > 0)
                             {
-                                <a asp-action="Zwroc" asp-route-id="@item.Id" class="btn btn-primary">Zwróć</a>
+                                <a asp-action="Wypozycz" asp-route-id="@item.Id" class="btn btn-success btn-sm">Wypożycz</a>
                             }
                             else
                             {
-                                <button class="btn btn-secondary" disabled>Niedostępna</button>
+                                @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
+                                {
+                                    <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Zwróć</a>
+                                }
+                                else if (User.Identity.IsAuthenticated)
+                                {
+                                    <a asp-action="Zwroc" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Zwróć</a>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-secondary btn-sm" disabled>Brak dostępnych egzemplarzy</button>
+                                }
                             }
-                        }
-                    </td>
-                </tr>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>

@@ -15,6 +15,39 @@
     <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
 
+<!-- Formularz filtrowania -->
+<form asp-action="AssignBook" method="get" class="mb-4">
+    <input type="hidden" name="czytelnikId" value="@Model.CzytelnikId" />
+    <div class="row">
+        <div class="col-md-3">
+            <label for="searchTitle">Tytuł:</label>
+            <input type="text" name="searchTitle" class="form-control" value="@ViewData["searchTitle"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="searchAuthor">Autor:</label>
+            <input type="text" name="searchAuthor" class="form-control" value="@ViewData["searchAuthor"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="searchISBN">ISBN:</label>
+            <input type="text" name="searchISBN" class="form-control" value="@ViewData["searchISBN"]" />
+        </div>
+        <div class="col-md-3">
+            <label for="tematyka">Tematyka:</label>
+            <select name="tematyka" class="form-control">
+                <option value="">-- Wszystkie --</option>
+                @foreach (var temat in Model.Tematyki)
+                {
+                    <option value="@temat" selected="@(ViewData["tematyka"]?.ToString() == temat.ToString() ? "selected" : null)">@temat</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3 mt-4">
+            <button type="submit" class="btn btn-primary">Filtruj</button>
+            <a asp-action="AssignBook" asp-route-czytelnikId="@Model.CzytelnikId" class="btn btn-secondary">Wyczyść</a>
+        </div>
+    </div>
+</form>
+
 @if (Model.Ksiazki == null || !Model.Ksiazki.Any())
 {
     <div class="alert alert-warning">
@@ -22,8 +55,7 @@
         @if (User.IsInRole("Administrator"))
         {
             <a asp-controller="Ksiazki" asp-action="Create" class="alert-link">Dodaj nową książkę</a>
-
-    }
+        }
     </div>
     <div>
         <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
@@ -31,22 +63,42 @@
 }
 else
 {
-    <form asp-action="AssignBook" method="post">
-        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-        <div class="form-group">
-            <label asp-for="KsiazkaId" class="control-label">Wybierz Książkę</label>
-            <select asp-for="KsiazkaId" class="form-control" asp-items="@(new SelectList(Model.Ksiazki, "Id", "Tytul"))" data-val="true" data-val-required="Proszę wybrać książkę." data-val-range="Proszę wybrać książkę." data-val-range-min="1">
-                <option value="">-- Wybierz książkę --</option>
-            </select>
-            <span asp-validation-for="KsiazkaId" class="text-danger"></span>
-        </div>
-        <div class="form-group mt-3">
-            <input type="hidden" asp-for="CzytelnikId" value="@Model.CzytelnikId" />
-            <input type="hidden" asp-for="Email" value="@Model.Email" />
-            <input type="submit" value="Przypisz" class="btn btn-primary" />
-            <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
-        </div>
-    </form>
+    <h4>Dostępne książki</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Tytuł</th>
+                <th>Autor</th>
+                <th>ISBN</th>
+                <th>Tematyka</th>
+                <th>Dostępne egzemplarze</th>
+                <th>Akcja</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ksiazka in Model.Ksiazki)
+            {
+                <tr>
+                    <td>@ksiazka.Tytul</td>
+                    <td>@ksiazka.Autor</td>
+                    <td>@ksiazka.ISBN</td>
+                    <td>@ksiazka.Tematyka</td>
+                    <td>@ksiazka.DostepneEgzemplarze</td>
+                    <td>
+                        <form asp-action="AssignBook" method="post" style="display:inline;">
+                            <input type="hidden" name="KsiazkaId" value="@ksiazka.Id" />
+                            <input type="hidden" name="CzytelnikId" value="@Model.CzytelnikId" />
+                            <input type="hidden" name="Email" value="@Model.Email" />
+                            <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Czy na pewno chcesz przypisać książkę: @ksiazka.Tytul?');">Wybierz</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div>
+        <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+    </div>
 }
 
 @section Scripts {
