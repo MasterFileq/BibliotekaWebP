@@ -94,7 +94,7 @@
                     <td>@item.Czytelnik.Email</td>
                     <td>@item.DataWypozyczenia.ToString("dd.MM.yyyy")</td>
                     <td>@item.TerminZwrotu.ToString("dd.MM.yyyy")</td>
-                    <td>@item.Kara.ToString("C")</td>
+                    <td>@item.Kara.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</td>
                     <td>
                         @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                         {
