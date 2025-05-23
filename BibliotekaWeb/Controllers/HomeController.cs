@@ -13,19 +13,23 @@ namespace BibliotekaWeb.Controllers
             _logger = logger;
         }
 
+        // Akcja do wyœwietlania strony g³ównej
         public IActionResult Index()
         {
             return View();
         }
 
+        // Akcja do wyœwietlania strony z informacjami o prywatnoœci (nie u¿ywana)
         public IActionResult Privacy()
         {
             return View();
         }
 
+        // Akcja do wyœwietlania strony z b³êdem
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
+            // Obiekt z informacjami o b³êdzie
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
     }

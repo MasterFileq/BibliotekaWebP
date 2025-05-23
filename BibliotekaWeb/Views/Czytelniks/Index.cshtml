@@ -33,11 +33,13 @@
 </form>
 
 <table class="table table-striped">
+    <!-- Tabela wyświetlająca listę czytelników. -->
     <thead>
         <tr>
             <th>Nazwa użytkownika</th>
             <th>Email</th>
             <th>Ilość wypożyczonych książek</th>
+            <th>Kara</th>
             <th>Akcje</th>
         </tr>
     </thead>
@@ -45,7 +47,7 @@
         @if (!Model.Any())
         {
             <tr>
-                <td colspan="4" class="text-center">Brak czytelników do wyświetlenia.</td>
+                <td colspan="5" class="text-center">Brak czytelników do wyświetlenia.</td>
             </tr>
         }
         else
@@ -56,16 +58,17 @@
                     <td>@czytelnik.User.UserName</td>
                     <td>@czytelnik.User.Email</td>
                     <td>@czytelnik.IloscWypozyczonychKsiazek</td>
+                    <td>@czytelnik.SumaKar.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</td>
                     <td>
                         @if (User.IsInRole("Administrator"))
                         {
-                            <a asp-action="Details" asp-route-id="@czytelnik.User.Id" class="btn btn-info btn-sm">Szczegóły</a>
-                            <a asp-action="Edit" asp-route-id="@czytelnik.User.Id" class="btn btn-warning btn-sm">Edytuj</a>
-                            <a asp-action="Delete" asp-route-id="@czytelnik.User.Id" class="btn btn-danger btn-sm">Usuń</a>
+                            <a asp-action="Details" asp-route-id="@czytelnik.UserId" class="btn btn-info btn-sm">Szczegóły</a>
+                            <a asp-action="Edit" asp-route-id="@czytelnik.UserId" class="btn btn-warning btn-sm">Edytuj</a>
+                            <a asp-action="Delete" asp-route-id="@czytelnik.UserId" class="btn btn-danger btn-sm">Usuń</a>
                         }
                         @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                         {
-                            <a asp-action="AssignBook" asp-route-czytelnikId="@czytelnik.User.Id" class="btn btn-primary btn-sm">Przypisz książkę</a>
+                            <a asp-action="AssignBook" asp-route-czytelnikId="@czytelnik.UserId" class="btn btn-primary btn-sm">Przypisz książkę</a>
                         }
                     </td>
                 </tr>
@@ -74,6 +77,7 @@
     </tbody>
 </table>
 
+<!-- Wyświetlanie komunikatów o sukcesie lub błędzie na dole strony -->
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>

@@ -10,24 +10,30 @@ using System.Threading.Tasks;
 
 namespace BibliotekaWeb.Controllers
 {
+    // Każdy użytkownik musi być autoryzowany, aby uzyskać dostęp do tego kontrolera
     [Authorize]
     public class KsiazkasController : Controller
     {
+        // Kontekst bazy danych i menedżer użytkowników
         private readonly ApplicationDbContext _context;
         private readonly UserManager<IdentityUser> _userManager;
 
+        // Konstruktor z kontekstem bazy danych i menedżerem użytkowników
         public KsiazkasController(ApplicationDbContext context, UserManager<IdentityUser> userManager)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         }
 
+        // Metoda do wyświetlania katalogu książek
         [Authorize(Roles = "Administrator, Bibliotekarz, Czytelnik")]
         public async Task<IActionResult> Katalog(string searchString, Tematyka? tematyka, string author, string isbn, bool? available)
         {
+            // Pobieranie wszystkich książek z bazy danych
             var books = from b in _context.Ksiazka
                         select b;
 
+            // Filtrowanie po tytule książki, tematyce, autorze, ISBN i dostępności
             if (!string.IsNullOrEmpty(searchString))
             {
                 books = books.Where(b => b.Tytul.Contains(searchString));
@@ -60,13 +66,18 @@ namespace BibliotekaWeb.Controllers
                 ViewData["CurrentAvailable"] = available.ToString();
             }
 
+            // Przekazywanie dostępnych tematyk do widoku
             ViewBag.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
+
+            // Widok listy książek
             return View(await books.ToListAsync());
         }
 
+        // Metoda do wypożyczania książki (dla zalogowanego użytkownika)
         [Authorize(Roles = "Czytelnik")]
         public async Task<IActionResult> Wypozyczone()
         {
+            // Pobieranie zalogowanego użytkownika na postawie jego nazwy użytkownika
             var user = await _userManager.FindByNameAsync(User.Identity.Name);
             if (user == null)
             {
@@ -74,6 +85,7 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction(nameof(Katalog));
             }
 
+            // Pobieranie wypożyczeń zalogowanego użytkownika z bazy danych
             var wypozyczenia = await _context.Wypozyczenie
                 .Include(w => w.Ksiazka)
                 .Where(w => w.CzytelnikId == user.Id && !w.CzyZwrocona) // Pokazuj tylko aktywne wypożyczenia
@@ -81,19 +93,20 @@ namespace BibliotekaWeb.Controllers
 
             return View(wypozyczenia);
         }
-
+        // Przedlużanie książki 
         [Authorize(Roles = "Czytelnik")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Przedluz(int id)
         {
+            // Pobieranie aktualnie zalogowanego użytkownika
             var user = await _userManager.FindByNameAsync(User.Identity.Name);
             if (user == null)
             {
                 TempData["ErrorMessage"] = "Nie udało się znaleźć zalogowanego użytkownika.";
                 return RedirectToAction(nameof(Wypozyczone));
             }
-
+            // Znajdujemy aktywne wypożyczenie należące do użytkownika
             var wypozyczenie = await _context.Wypozyczenie
                 .FirstOrDefaultAsync(w => w.Id == id && w.CzytelnikId == user.Id && !w.CzyZwrocona);
 
@@ -103,12 +116,14 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction(nameof(Wypozyczone));
             }
 
+            // Sprawdzamy, czy wypożyczenie zostało już przedłużone
             if (wypozyczenie.LiczbaPrzedluzen >= 1)
             {
                 TempData["ErrorMessage"] = "Możesz przedłużyć wypożyczenie tylko raz.";
                 return RedirectToAction(nameof(Wypozyczone));
             }
 
+            // Przedłużamy termin zwrotu o 30 dni
             wypozyczenie.TerminZwrotu = wypozyczenie.TerminZwrotu.AddDays(30);
             wypozyczenie.LiczbaPrzedluzen++;
 
@@ -126,11 +141,13 @@ namespace BibliotekaWeb.Controllers
             return RedirectToAction(nameof(Wypozyczone));
         }
 
+        // Akcja PrzedluzByAdmin - przedłużanie wypożyczenia przez administratora lub bibliotekarza
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PrzedluzByAdmin(int id)
         {
+            // Pobieranie wypożyczenia na podstawie ID
             var wypozyczenie = await _context.Wypozyczenie
                 .FirstOrDefaultAsync(w => w.Id == id && !w.CzyZwrocona);
 
@@ -140,6 +157,7 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction("Index", "Bibliotekarz");
             }
 
+            //Przedłużamy termin zwrotu o 30 dni oraz zwiększamy liczbę przedłużeń
             wypozyczenie.TerminZwrotu = wypozyczenie.TerminZwrotu.AddDays(30);
             wypozyczenie.LiczbaPrzedluzen++;
 
@@ -157,6 +175,7 @@ namespace BibliotekaWeb.Controllers
             return RedirectToAction("Index", "Bibliotekarz");
         }
 
+        // Metoda do wyświetlania szczegółów książki na podstawie ID
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -174,17 +193,21 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
+        // Wyświetlanie formularza dodawania nowej książki
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public IActionResult Create()
         {
             return View();
         }
 
+        // Akcja POST - dodawanie nowej książki
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Create([Bind("Id,Tytul,Autor,ISBN,IloscEgzemplarzy,Tematyka")] Ksiazka ksiazka)
         {
+
+            // Sprawdzanie, czy ISBN jest unikalny
             if (await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN))
             {
                 ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
@@ -192,6 +215,7 @@ namespace BibliotekaWeb.Controllers
 
             if (ModelState.IsValid)
             {
+                // Ustawiamy liczbę dostępnych egzemplarzy na podstawie całkowitej liczby egzemplarzy
                 ksiazka.DostepneEgzemplarze = ksiazka.IloscEgzemplarzy;
                 _context.Add(ksiazka);
                 try
@@ -210,6 +234,7 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
+        // Akcja do edytowania książki na podstawie ID
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -226,27 +251,33 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
+        // Akcja POST - aktualizacja książki
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Tytul,Autor,ISBN,IloscEgzemplarzy,Tematyka")] Ksiazka ksiazka)
         {
+
+            // Sprawdzanie, czy książka istnieje w bazie danych
             if (id != ksiazka.Id)
             {
                 return NotFound();
             }
 
+            // Sprawdzanie, czy ISBN jest unikalny
             if (await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN && k.Id != ksiazka.Id))
             {
                 ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
             }
 
+            // Pobieranie istniejącej książki z bazy danych (bez śledzenia zmian)
             var existingKsiazka = await _context.Ksiazka.AsNoTracking().FirstOrDefaultAsync(k => k.Id == id);
             if (existingKsiazka == null)
             {
                 return NotFound();
             }
 
+            // Sprawdzanie, czy liczba egzemplarzy jest mniejsza niż liczba aktualnie wypożyczonych
             int wypozyczoneEgzemplarze = existingKsiazka.IloscEgzemplarzy - existingKsiazka.DostepneEgzemplarze;
             if (ksiazka.IloscEgzemplarzy < wypozyczoneEgzemplarze)
             {
@@ -257,6 +288,7 @@ namespace BibliotekaWeb.Controllers
             {
                 try
                 {
+                    // Aktualizacja danych książki
                     existingKsiazka.Tytul = ksiazka.Tytul;
                     existingKsiazka.Autor = ksiazka.Autor;
                     existingKsiazka.ISBN = ksiazka.ISBN;
@@ -287,6 +319,7 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
+        // Akcja do usuwania książki na podstawie ID
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Delete(int? id)
         {
@@ -302,6 +335,7 @@ namespace BibliotekaWeb.Controllers
                 return NotFound();
             }
 
+            // Sprawdzanie, czy książka jest aktualnie wypożyczona
             var activeWypozyczenia = await _context.Wypozyczenie
                 .AnyAsync(w => w.KsiazkaId == id && !w.CzyZwrocona);
             if (activeWypozyczenia)
@@ -313,6 +347,8 @@ namespace BibliotekaWeb.Controllers
             return View(ksiazka);
         }
 
+
+        // Akcja POST - usuwanie książki
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator, Bibliotekarz")]
@@ -325,6 +361,7 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction(nameof(Katalog));
             }
 
+            // Ponowne sprawdzenie, czy książka jest aktualnie wypożyczona
             var activeWypozyczenia = await _context.Wypozyczenie
                 .AnyAsync(w => w.KsiazkaId == id && !w.CzyZwrocona);
             if (activeWypozyczenia)
@@ -348,14 +385,17 @@ namespace BibliotekaWeb.Controllers
             return RedirectToAction(nameof(Katalog));
         }
 
+        // Metoda pomocnicza do sprawdzania, czy książka istnieje w bazie danych
         private bool KsiazkaExists(int id)
         {
             return _context.Ksiazka.Any(e => e.Id == id);
         }
 
+        // Akcja do zwracania książki przez administratora lub bibliotekarza
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> ZwrocByAdmin(int id)
         {
+            // Pobieranie wypożyczenia na podstawie ID książki
             var wypozyczenie = await _context.Wypozyczenie
                 .FirstOrDefaultAsync(w => w.KsiazkaId == id && !w.CzyZwrocona);
 
@@ -365,6 +405,7 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction("Index", "Bibliotekarz");
             }
 
+            // Pobieranie książki na podstawie ID
             var ksiazka = await _context.Ksiazka.FindAsync(id);
             if (ksiazka == null)
             {
@@ -372,6 +413,7 @@ namespace BibliotekaWeb.Controllers
                 return RedirectToAction("Index", "Bibliotekarz");
             }
 
+            // Zmiana statusu wypożyczenia na zwrócone
             wypozyczenie.CzyZwrocona = true;
             ksiazka.DostepneEgzemplarze++;
 

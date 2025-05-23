@@ -51,14 +51,14 @@
 <div class="row mb-4">
     <!-- Wykres bieżących wypożyczeń -->
     <div class="col-md-6">
-        <h4>Bieżące wypożyczenia</h4>
+        <h4 class="text-center">Bieżące wypożyczenia</h4>
         <div class="chart-container">
             <canvas id="biezaceWypozyczeniaChart"></canvas>
         </div>
     </div>
     <!-- Wykres wypożyczeń z ostatnich 30 dni -->
     <div class="col-md-6">
-        <h4>Wypożyczenia z ostatnich 30 dni</h4>
+        <h4 class="text-center">Wypożyczenia z ostatnich 30 dni</h4>
         <div class="chart-container">
             <canvas id="wypozyczeniaOstatnie30DniChart"></canvas>
         </div>
@@ -112,6 +112,7 @@
     </tbody>
 </table>
 
+<!-- Komunikaty sukcesu i błędu -->
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>
@@ -122,6 +123,7 @@
 }
 
 @section Scripts {
+    <!-- Skrypt JavaScript do renderowania wykresów -->
     <script>
         // Dane dla wykresów
         const daneBiezace = @Html.Raw(Json.Serialize(ViewBag.BiezaceWypozyczenia));
@@ -164,10 +166,11 @@
             }
         });
 
-        // Wykres wypożyczeń z ostatnich 30 dni
+        // Przygotowanie danych dla wykresu wypożyczeń z ostatnich 30 dni
         const etykietyOstatnie30 = daneOstatnie30.map(d => d.miesiac);
         const liczbyOstatnie30 = daneOstatnie30.map(d => d.liczbaWypozyczen);
 
+        // Inicjalizacja wykresu wypożyczeń z ostatnich 30 dni
         const ctxOstatnie30 = document.getElementById('wypozyczeniaOstatnie30DniChart').getContext('2d');
         new Chart(ctxOstatnie30, {
             type: 'bar',

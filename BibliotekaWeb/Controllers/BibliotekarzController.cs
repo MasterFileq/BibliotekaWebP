@@ -13,24 +13,27 @@ namespace BibliotekaWeb.Controllers
     [Authorize(Roles = "Administrator, Bibliotekarz")]
     public class BibliotekarzController : Controller
     {
+        // Kontekst bazy danych i logger
         private readonly ApplicationDbContext _context;
         private readonly ILogger<BibliotekarzController> _logger;
 
+        // Konstruktor z kontekstem bazy danych i loggerem
         public BibliotekarzController(ApplicationDbContext context, ILogger<BibliotekarzController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
-
+        // Metoda do wyświetlania wypożyczeń
         public async Task<IActionResult> Index(string searchTitle, string searchEmail, DateTime? startDate, DateTime? endDate)
         {
+            // Pobieranie wszystkich wypożyczeń z bazy danych
             var wypozyczenia = _context.Wypozyczenie
                 .Include(w => w.Ksiazka)
                 .Include(w => w.Czytelnik)
                 .Where(w => !w.CzyZwrocona) 
                 .AsQueryable();
 
-            // Filtrowanie
+            // Filtrowanie po tytule książki, adresie e-mail czytelnika i dacie wypożyczenia
             if (!string.IsNullOrEmpty(searchTitle))
             {
                 wypozyczenia = wypozyczenia.Where(w => w.Ksiazka.Tytul.Contains(searchTitle));
@@ -55,7 +58,9 @@ namespace BibliotekaWeb.Controllers
                 ViewData["endDate"] = endDate.Value.ToString("yyyy-MM-dd");
             }
 
-            // Dane dla wykresu bieżących wypożyczeń (tylko aktywne, CzyZwrocona = false)
+            // Tworzenie danych do wykresu bieżących wypożyczeń
+
+            // Dane dla wykresu bieżących wypożyczeń (tylko aktywne)
             var biezaceWypozyczeniaRaw = await _context.Wypozyczenie
                 .Where(w => !w.CzyZwrocona)
                 .GroupBy(w => new { w.DataWypozyczenia.Year, w.DataWypozyczenia.Month })
@@ -68,7 +73,7 @@ namespace BibliotekaWeb.Controllers
                 .OrderBy(g => g.Year)
                 .ThenBy(g => g.Month)
                 .ToListAsync();
-
+            // Mapowanie danych do formatu wykresu
             var biezaceWypozyczenia = biezaceWypozyczeniaRaw
                 .Select(g => new
                 {
@@ -82,6 +87,7 @@ namespace BibliotekaWeb.Controllers
             ViewBag.BiezaceWypozyczenia = biezaceWypozyczenia;
 
             // Dane dla wykresu wypożyczeń z ostatnich 30 dni (aktywne i zwrócone)
+
             var data30DniTemu = DateTime.Now.AddDays(-30);
             var wypozyczeniaOstatnie30DniRaw = await _context.Wypozyczenie
                 .Where(w => w.DataWypozyczenia >= data30DniTemu)
@@ -97,7 +103,7 @@ namespace BibliotekaWeb.Controllers
                 .OrderBy(g => g.Year)
                 .ThenBy(g => g.Month)
                 .ToListAsync();
-
+            // Mapowanie danych do formatu wykresu
             var wypozyczeniaOstatnie30Dni = wypozyczeniaOstatnie30DniRaw
                 .Select(g => new
                 {

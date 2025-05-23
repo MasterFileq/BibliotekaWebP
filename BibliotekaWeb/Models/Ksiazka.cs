@@ -2,6 +2,7 @@
 
 namespace BibliotekaWeb.Models
 {
+    // Enum do reprezentacji tematyk książek
     public enum Tematyka
     {
         Ekonomia,
@@ -12,29 +13,36 @@ namespace BibliotekaWeb.Models
 
     public class Ksiazka
     {
+        // Id książki
         public int Id { get; set; }
 
+        // Tytuł książki (wymagany)
         [Required(ErrorMessage = "Tytuł jest wymagany.")]
         [Display(Name = "Tytuł")]
         public string Tytul { get; set; }
 
+        // Autor książki (wymagany)
         [Required(ErrorMessage = "Autor jest wymagany.")]
         [Display(Name = "Autor")]
         public string Autor { get; set; }
 
+        // Numer ISBN książki (wymagane)
         [Required(ErrorMessage = "ISBN jest wymagany.")]
         [StringLength(13, MinimumLength = 10, ErrorMessage = "ISBN musi mieć od 10 do 13 znaków.")]
         [Display(Name = "ISBN")]
         public string ISBN { get; set; }
 
+        // Ilość egzemplarzy książki (wymagana)
         [Required(ErrorMessage = "Ilość egzemplarzy jest wymagana.")]
         [Range(1, int.MaxValue, ErrorMessage = "Ilość egzemplarzy musi być większa od 0.")]
         [Display(Name = "Ilość egzemplarzy")]
         public int IloscEgzemplarzy { get; set; }
 
+        // Całkowita ilość dostępnych egzemplarzy książki (wymagana)
         [Display(Name = "Dostępne egzemplarze")]
-        public int DostepneEgzemplarze { get; set; } // Nowe pole
+        public int DostepneEgzemplarze { get; set; }
 
+        // Tematyka książki (wymagana)
         [Required(ErrorMessage = "Tematyka jest wymagana.")]
         [Display(Name = "Tematyka")]
         public Tematyka Tematyka { get; set; }
