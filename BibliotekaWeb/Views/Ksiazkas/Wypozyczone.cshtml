@@ -42,7 +42,7 @@
                     <td>@item.Ksiazka.Autor</td>
                     <td>@item.DataWypozyczenia.ToString("dd.MM.yyyy")</td>
                     <td>@item.TerminZwrotu.ToString("dd.MM.yyyy")</td>
-                    <td>@item.Kara.ToString("C")</td> 
+                    <td>@item.Kara.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</td> 
                     <td>
                         <form asp-action="Przedluz" asp-route-id="@item.Id" method="post" style="display:inline;">
                             <button type="submit" class="btn btn-primary btn-sm">Przedłuż</button>

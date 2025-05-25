@@ -253,13 +253,15 @@ namespace BibliotekaWeb.Controllers
         }
 
         // Akcja POST - potwierdzenie usunięcia czytelnika
-        [HttpPost, ActionName("Delete")]
+        [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
+            // Sprawdzenie czy identyfikator czytelnika jest poprawny
             if (string.IsNullOrEmpty(id))
             {
+                _logger.LogWarning("Próba usunięcia czytelnika z pustym identyfikatorem.");
                 TempData["ErrorMessage"] = "Nieprawidłowy identyfikator czytelnika.";
                 return RedirectToAction(nameof(Index));
             }
@@ -268,13 +270,26 @@ namespace BibliotekaWeb.Controllers
             var user = await _userManager.FindByIdAsync(id);
             if (user == null)
             {
+                _logger.LogWarning("Nie znaleziono użytkownika o identyfikatorze {UserId}.", id);
                 TempData["ErrorMessage"] = "Nie znaleziono czytelnika.";
                 return RedirectToAction(nameof(Index));
             }
 
+            // Deklaracja transakcji
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction = null;
             try
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
+                transaction = await _context.Database.BeginTransactionAsync();
+
+                // Usuwanie powiązań w AspNetUserRoles
+                var userRoles = await _context.UserRoles
+                    .Where(ur => ur.UserId == id)
+                    .ToListAsync();
+                if (userRoles.Any())
+                {
+                    _context.UserRoles.RemoveRange(userRoles);
+                    _logger.LogInformation("Usunięto {Count} powiązań ról dla użytkownika {UserId}.", userRoles.Count, id);
+                }
 
                 // Pobieranie wypożyczeń czytelnika i aktualizacja dostępnych egzemplarzy książek
                 var wypozyczenia = await _context.Wypozyczenie
@@ -285,17 +300,23 @@ namespace BibliotekaWeb.Controllers
                 // Sprawdzenie czy są jakieś wypożyczenia do zwrotu
                 foreach (var wypozyczenie in wypozyczenia)
                 {
-                    if (wypozyczenie.Ksiazka != null)
+                    if (wypozyczenie.Ksiazka == null)
                     {
-                        wypozyczenie.Ksiazka.DostepneEgzemplarze++;
-                        wypozyczenie.CzyZwrocona = true;
-                        _context.Update(wypozyczenie.Ksiazka);
-                        _context.Update(wypozyczenie);
+                        _logger.LogError("Wypożyczenie {WypozyczenieId} ma null Ksiazka dla czytelnika {UserId}.", wypozyczenie.Id, id);
+                        TempData["ErrorMessage"] = "Wystąpił problem z powiązaną książką w wypożyczeniu.";
+                        await transaction.RollbackAsync();
+                        return RedirectToAction(nameof(Index));
                     }
+                    wypozyczenie.Ksiazka.DostepneEgzemplarze++;
+                    wypozyczenie.CzyZwrocona = true;
+                    _context.Update(wypozyczenie.Ksiazka);
+                    _context.Update(wypozyczenie);
+                    _logger.LogInformation("Zaktualizowano wypożyczenie {WypozyczenieId} dla książki {KsiazkaId}.", wypozyczenie.Id, wypozyczenie.KsiazkaId);
                 }
 
                 // Zapisanie zmian w bazie danych
                 await _context.SaveChangesAsync();
+                _logger.LogInformation("Zapisano zmiany w wypożyczeniach dla użytkownika {UserId}.", id);
 
                 // Usunięcie czytelnika z bazy danych przy pomocy Identity
                 var result = await _userManager.DeleteAsync(user);
@@ -309,15 +330,31 @@ namespace BibliotekaWeb.Controllers
                 }
 
                 await transaction.CommitAsync();
-
+                _logger.LogInformation("Pomyślnie usunięto użytkownika {UserId}.", id);
                 TempData["SuccessMessage"] = "Czytelnik został pomyślnie usunięty.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Błąd bazy danych podczas usuwania czytelnika {UserId}.", id);
+                TempData["ErrorMessage"] = "Błąd bazy danych podczas usuwania czytelnika. Sprawdź powiązane dane.";
+                if (transaction != null)
+                    await transaction.RollbackAsync();
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Błąd podczas usuwania czytelnika {UserId}", id);
-                TempData["ErrorMessage"] = "Wystąpił błąd podczas usuwania czytelnika. Spróbuj ponownie.";
+                _logger.LogError(ex, "Nieoczekiwany błąd podczas usuwania czytelnika {UserId}.", id);
+                TempData["ErrorMessage"] = "Wystąpił nieoczekiwany błąd podczas usuwania czytelnika.";
+                if (transaction != null)
+                    await transaction.RollbackAsync();
                 return RedirectToAction(nameof(Index));
+            }
+            finally
+            {
+                // Ręczne zwolnienie transakcji
+                if (transaction != null)
+                    await transaction.DisposeAsync();
             }
         }
 

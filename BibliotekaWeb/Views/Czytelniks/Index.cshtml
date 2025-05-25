@@ -64,7 +64,11 @@
                         {
                             <a asp-action="Details" asp-route-id="@czytelnik.UserId" class="btn btn-info btn-sm">Szczegóły</a>
                             <a asp-action="Edit" asp-route-id="@czytelnik.UserId" class="btn btn-warning btn-sm">Edytuj</a>
-                            <a asp-action="Delete" asp-route-id="@czytelnik.UserId" class="btn btn-danger btn-sm">Usuń</a>
+                            <form asp-action="DeleteConfirmed" method="post" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć tego czytelnika?');">
+                                <input type="hidden" name="id" value="@czytelnik.UserId" />
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-danger btn-sm">Usuń</button>
+                            </form>
                         }
                         @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                         {
