@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
 
 namespace BibliotekaWeb.Controllers
 {
@@ -35,9 +37,10 @@ namespace BibliotekaWeb.Controllers
             _roleManager = roleManager ?? throw new ArgumentNullException(nameof(roleManager));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
+
         // Metoda do wyświetlania listy czytelników z opcjami filtrowania
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> Index(string searchUserName, string searchEmail, int? minWypozyczenia, int? maxWypozyczenia)
+        public async Task<IActionResult> Index(string searchEmail, int? minWypozyczenia, int? maxWypozyczenia) // Usunięto searchUserName
         {
             // Pobieranie wszystkich czytelników z roli "Czytelnik"
             var czytelnicy = await _userManager.GetUsersInRoleAsync("Czytelnik");
@@ -59,11 +62,6 @@ namespace BibliotekaWeb.Controllers
 
             // Filtrowanie czytelników na podstawie podanych kryteriów
             var filteredCzytelnicy = czytelnicy.AsQueryable();
-            if (!string.IsNullOrEmpty(searchUserName))
-            {
-                filteredCzytelnicy = filteredCzytelnicy.Where(u => u.UserName.Contains(searchUserName, StringComparison.OrdinalIgnoreCase));
-                ViewData["searchUserName"] = searchUserName;
-            }
 
             if (!string.IsNullOrEmpty(searchEmail))
             {
@@ -96,11 +94,12 @@ namespace BibliotekaWeb.Controllers
             if (maxWypozyczenia.HasValue)
                 ViewData["maxWypozyczenia"] = maxWypozyczenia.Value.ToString();
             // Logowanie informacji o załadowanych czytelnikach
-            _logger.LogInformation("Załadowano {Count} czytelników z filtrami: UserName={UserName}, Email={Email}, MinWypozyczenia={Min}, MaxWypozyczenia={Max}",
-                czytelnikViewModels.Count, searchUserName, searchEmail, minWypozyczenia, maxWypozyczenia);
+            _logger.LogInformation("Załadowano {Count} czytelników z filtrami: Email={Email}, MinWypozyczenia={Min}, MaxWypozyczenia={Max}", // Usunięto UserName z logu
+                czytelnikViewModels.Count, searchEmail, minWypozyczenia, maxWypozyczenia);
 
             return View(czytelnikViewModels);
         }
+
         // Metoda do wyświetlania formularza dodawania nowego czytelnika (tylko dla administratora)
         [Authorize(Roles = "Administrator")]
         public IActionResult Create()
@@ -121,8 +120,17 @@ namespace BibliotekaWeb.Controllers
                 return View(model);
             }
 
+            // Sprawdzenie unikalności emaila
+            var existingUser = await _userManager.FindByEmailAsync(model.Email);
+            if (existingUser != null)
+            {
+                ModelState.AddModelError("Email", "Podany adres email jest już używany.");
+                TempData["ErrorMessage"] = "Nieprawidłowe dane formularza.";
+                return View(model);
+            }
+
             // Tworzenie nowego użytkownika
-            var user = new IdentityUser { UserName = model.Email, Email = model.Email };
+            var user = new IdentityUser { UserName = model.Email, Email = model.Email }; // UserName ustawiany na Email
             var result = await _userManager.CreateAsync(user, model.Password);
 
             if (result.Succeeded)
@@ -134,6 +142,7 @@ namespace BibliotekaWeb.Controllers
                 TempData["SuccessMessage"] = "Nowy czytelnik został dodany.";
                 return RedirectToAction(nameof(Index));
             }
+
             // Jeżeli wystąpiły błędy podczas tworzenia użytkownika, dodajemy je do ModelState
             foreach (var error in result.Errors)
             {
@@ -179,24 +188,25 @@ namespace BibliotekaWeb.Controllers
             {
                 return NotFound();
             }
+            // Tworzymy ViewModel tylko z potrzebnymi polami
+            var model = new EditCzytelnikViewModel
+            {
+                Id = user.Id,
+                Email = user.Email
+            };
 
-            return View(user);
+            return View(model);
         }
 
         // Akcja POST - edytowanie danych czytelnika
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Administrator")]
-        public async Task<IActionResult> Edit(string id, IdentityUser model)
+        public async Task<IActionResult> Edit(string id, EditCzytelnikViewModel model) // Zmieniono model na EditCzytelnikViewModel
         {
             if (id != model.Id)
             {
                 return NotFound();
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return View(model);
             }
 
             // Sprawdzenie czy identyfikator czytelnika jest poprawny
@@ -205,16 +215,44 @@ namespace BibliotekaWeb.Controllers
             {
                 return NotFound();
             }
-            // Sprawdzenie czy dane w formularzu są poprawne (nazwam, email)
-            if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Email))
+
+            // Ręczna walidacja formatu emaila
+            var emailValidator = new EmailAddressAttribute();
+            if (string.IsNullOrWhiteSpace(model.Email))
             {
-                ModelState.AddModelError(string.Empty, "Nazwa użytkownika i email nie mogą być puste.");
+                ModelState.AddModelError("Email", "Email jest wymagany.");
+            }
+            else if (!emailValidator.IsValid(model.Email))
+            {
+                ModelState.AddModelError("Email", "Podaj prawidłowy adres email.");
+            }
+
+            // Sprawdzenie unikalności emaila (jeśli email się zmienił)
+            if (model.Email != user.Email)
+            {
+                var existingUserWithNewEmail = await _userManager.FindByEmailAsync(model.Email);
+                if (existingUserWithNewEmail != null && existingUserWithNewEmail.Id != user.Id)
+                {
+                    ModelState.AddModelError("Email", "Podany adres email jest już używany.");
+                }
+            }
+
+            // Usunięto walidację dla UserName, ponieważ nie jest już edytowalny bezpośrednio
+
+            if (!ModelState.IsValid)
+            {
+                // Należy ponownie przekazać model do widoku
                 return View(model);
             }
 
             // Aktualizacja danych czytelnika
-            user.UserName = model.UserName;
+            // UserName jest teraz taki sam jak Email
+            user.UserName = model.Email;
             user.Email = model.Email;
+            // Wymuszenie normalizacji, jeśli Identity tego wymaga przy zmianie UserName/Email
+            user.NormalizedUserName = _userManager.NormalizeName(model.Email);
+            user.NormalizedEmail = _userManager.NormalizeEmail(model.Email);
+
 
             var result = await _userManager.UpdateAsync(user);
             if (result.Succeeded)
@@ -229,6 +267,7 @@ namespace BibliotekaWeb.Controllers
                 ModelState.AddModelError(string.Empty, error.Description);
             }
 
+            // Należy ponownie przekazać model do widoku
             return View(model);
         }
 
@@ -430,7 +469,7 @@ namespace BibliotekaWeb.Controllers
                 var czytelnik = await _userManager.FindByIdAsync(model.CzytelnikId);
                 if (czytelnik == null)
                 {
-                    TempData["ErrorMessage"] = "Nie znaleziono czytelnika z podanym identyfikatorem.";
+                    TempData["ErrorMessage"] = "Nie znaleziono czytelnika z podanym identyfikatorowym.";
                     model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
                     model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
                     return View(model);
@@ -495,8 +534,8 @@ namespace BibliotekaWeb.Controllers
 
             // Jeżeli wystąpiły błędy walidacji, dodajemy je do ModelState i wyświetlamy formularz ponownie
             var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
-            _logger.LogWarning("Błędy walidacji przy przypisywaniu książki: {Errors}", string.Join("; ", errors));
-            TempData["ErrorMessage"] = string.Join("; ", errors) + " Proszę upewnić się, że wybrano książkę.";
+            _logger.LogWarning("Błędy walidacji przy przypisywaniu książki: {Errors}", string.Join(", ", errors));
+            TempData["ErrorMessage"] = string.Join(("; ", errors) + " Proszę upewnić się, że wybrano książkę.");
             model.Ksiazki = await _context.Ksiazka.Where(k => k.DostepneEgzemplarze > 0).ToListAsync();
             model.Tematyki = Enum.GetValues(typeof(Tematyka)).Cast<Tematyka>().ToList();
             return View(model);
@@ -510,5 +549,15 @@ namespace BibliotekaWeb.Controllers
                 await _roleManager.CreateAsync(new IdentityRole("Czytelnik"));
             }
         }
+    }
+
+    // Prosty ViewModel dla edycji Czytelnika, zawierający tylko potrzebne pola
+    public class EditCzytelnikViewModel
+    {
+        public string Id { get; set; }
+
+        [Required(ErrorMessage = "Email jest wymagany.")]
+        [EmailAddress(ErrorMessage = "Podaj prawidłowy adres email.")]
+        public string Email { get; set; }
     }
 }

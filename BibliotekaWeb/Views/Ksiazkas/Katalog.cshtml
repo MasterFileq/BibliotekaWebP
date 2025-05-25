@@ -85,10 +85,10 @@
                         {
                             <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edytuj</a>
                             <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Usuń</a>
-                            if (item.DostepneEgzemplarze < item.IloscEgzemplarzy)
+                            @* if (item.DostepneEgzemplarze < item.IloscEgzemplarzy)
                             {
                                 <a asp-action="ZwrocByAdmin" asp-route-id="@item.Id" class="btn btn-warning btn-sm">Zwróć (Admin)</a>
-                            }
+                            } *@
                         }
                     </td>
                 </tr>

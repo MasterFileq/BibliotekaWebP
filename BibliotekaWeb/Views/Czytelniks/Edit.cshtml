@@ -1,4 +1,4 @@
-﻿@model Microsoft.AspNetCore.Identity.IdentityUser
+﻿@model BibliotekaWeb.Controllers.EditCzytelnikViewModel
 
 @{
     ViewData["Title"] = "Edytuj Czytelnika";
@@ -6,7 +6,6 @@
 
 <h1>Edytuj Czytelnika</h1>
 
-<!-- Wyświetlanie komunikatów o sukcesie lub błędzie -->
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>
@@ -16,18 +15,13 @@
     <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
 
-<h4>@Model.UserName</h4>
+<h4>Edycja Emaila Czytelnika</h4>
 <hr />
 <div class="row">
     <div class="col-md-4">
         <form asp-action="Edit">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <input type="hidden" asp-for="Id" />
-            <div class="form-group">
-                <label asp-for="UserName" class="control-label"></label>
-                <input asp-for="UserName" class="form-control" />
-                <span asp-validation-for="UserName" class="text-danger"></span>
-            </div>
             <div class="form-group">
                 <label asp-for="Email" class="control-label"></label>
                 <input asp-for="Email" class="form-control" />

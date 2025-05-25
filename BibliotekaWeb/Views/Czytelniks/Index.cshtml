@@ -6,13 +6,8 @@
 
 <h1>Czytelnicy</h1>
 
-<!-- Formularz filtrowania -->
 <form asp-action="Index" method="get" class="mb-4">
     <div class="row">
-        <div class="col-md-3">
-            <label for="searchUserName">Nazwa użytkownika:</label>
-            <input type="text" name="searchUserName" class="form-control" value="@ViewData["searchUserName"]" />
-        </div>
         <div class="col-md-3">
             <label for="searchEmail">Email:</label>
             <input type="text" name="searchEmail" class="form-control" value="@ViewData["searchEmail"]" />
@@ -33,11 +28,9 @@
 </form>
 
 <table class="table table-striped">
-    <!-- Tabela wyświetlająca listę czytelników. -->
     <thead>
         <tr>
-            <th>Nazwa użytkownika</th>
-            <th>Email</th>
+            <th>Email</th> 
             <th>Ilość wypożyczonych książek</th>
             <th>Kara</th>
             <th>Akcje</th>
@@ -47,7 +40,7 @@
         @if (!Model.Any())
         {
             <tr>
-                <td colspan="5" class="text-center">Brak czytelników do wyświetlenia.</td>
+                <td colspan="4" class="text-center">Brak czytelników do wyświetlenia.</td> 
             </tr>
         }
         else
@@ -55,8 +48,7 @@
             @foreach (var czytelnik in Model)
             {
                 <tr>
-                    <td>@czytelnik.User.UserName</td>
-                    <td>@czytelnik.User.Email</td>
+                    <td>@czytelnik.User.Email</td> 
                     <td>@czytelnik.IloscWypozyczonychKsiazek</td>
                     <td>@czytelnik.SumaKar.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</td>
                     <td>
@@ -81,7 +73,6 @@
     </tbody>
 </table>
 
-<!-- Wyświetlanie komunikatów o sukcesie lub błędzie na dole strony -->
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>
