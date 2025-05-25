@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
-using BibliotekaWeb.Data; // Upewnij się, że to poprawna przestrzeń nazw dla Twojego ApplicationDbContext
-using Microsoft.EntityFrameworkCore; // Dla AnyAsync()
+using BibliotekaWeb.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace BibliotekaWeb.Areas.Identity.Pages.Account.Manage
 {
@@ -19,56 +19,76 @@ namespace BibliotekaWeb.Areas.Identity.Pages.Account.Manage
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly ILogger<DeletePersonalDataModel> _logger;
-        private readonly ApplicationDbContext _context; // Dodane pole dla DbContext
+        private readonly ApplicationDbContext _context;
+
+        // Nowe właściwości do kontrolowania widoku
+        public bool CanAttemptToDelete { get; private set; } = true;
+        public string CannotDeleteReason { get; private set; }
 
         public DeletePersonalDataModel(
             UserManager<IdentityUser> userManager,
             SignInManager<IdentityUser> signInManager,
             ILogger<DeletePersonalDataModel> logger,
-            ApplicationDbContext context) // Dodany parametr ApplicationDbContext
+            ApplicationDbContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _logger = logger;
-            _context = context; // Przypisanie DbContext
+            _context = context;
         }
 
-        /// <summary>
-        ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-        ///     directly from your code. This API may change or be removed in future releases.
-        /// </summary>
         [BindProperty]
         public InputModel Input { get; set; }
 
-        /// <summary>
-        ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-        ///     directly from your code. This API may change or be removed in future releases.
-        /// </summary>
         public class InputModel
         {
-            /// <summary>
-            ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-            ///     directly from your code. This API may change or be removed in future releases.
-            /// </summary>
             [Required(ErrorMessage = "Hasło jest wymagane.")]
             [DataType(DataType.Password)]
             [Display(Name = "Hasło")]
             public string Password { get; set; }
         }
 
-        /// <summary>
-        ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-        ///     directly from your code. This API may change or be removed in future releases.
-        /// </summary>
         public bool RequirePassword { get; set; }
 
-        public async Task<IActionResult> OnGet()
+        private async Task CheckIfUserCanBeDeleted(IdentityUser user)
+        {
+            if (user == null)
+            {
+                CanAttemptToDelete = false;
+                CannotDeleteReason = "Nie można zidentyfikować użytkownika.";
+                return;
+            }
+
+            // Sprawdzenie ról Administrator lub Bibliotekarz
+            if (await _userManager.IsInRoleAsync(user, "Administrator") || await _userManager.IsInRoleAsync(user, "Bibliotekarz"))
+            {
+                CanAttemptToDelete = false;
+                CannotDeleteReason = "Administratorzy oraz Bibliotekarze nie mogą samodzielnie usuwać swoich kont za pomocą tej funkcji. Skontaktuj się z innym administratorem w celu zarządzania kontem.";
+                _logger.LogWarning($"Użytkownik {user.Id} ({user.UserName}) z rolą Administrator/Bibliotekarz próbował uzyskać dostęp do strony usuwania własnego konta.");
+                return; // Zakończ sprawdzanie, jeśli rola blokuje
+            }
+
+            // Sprawdzenie aktywnych wypożyczeń (jeśli CanAttemptToDelete jest nadal true)
+            var hasActiveLoans = await _context.Wypozyczenie
+                                     .AnyAsync(w => w.CzytelnikId == user.Id && !w.CzyZwrocona);
+            if (hasActiveLoans)
+            {
+                CanAttemptToDelete = false; // Technicznie mogą próbować, ale dostaną błąd. Tu ustawiamy dla spójności komunikatu OnGet
+                CannotDeleteReason = "Nie możesz usunąć konta, ponieważ masz niezwrócone książki. Prosimy najpierw zwrócić wszystkie wypożyczone pozycje.";
+                // Nie logujemy tu Warning, bo to standardowa blokada
+            }
+        }
+
+
+        public async Task<IActionResult> OnGetAsync()
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
                 return NotFound($"Nie można załadować użytkownika o ID '{_userManager.GetUserId(User)}'.");
             }
+
+            await CheckIfUserCanBeDeleted(user); // Sprawdź, czy użytkownik może próbować usunąć konto
 
             RequirePassword = await _userManager.HasPasswordAsync(user);
             return Page();
@@ -82,33 +102,42 @@ namespace BibliotekaWeb.Areas.Identity.Pages.Account.Manage
                 return NotFound($"Nie można załadować użytkownika o ID '{_userManager.GetUserId(User)}'.");
             }
 
+            // Ponowne sprawdzenie ról jako zabezpieczenie serwerowe na POST
+            if (await _userManager.IsInRoleAsync(user, "Administrator") || await _userManager.IsInRoleAsync(user, "Bibliotekarz"))
+            {
+                _logger.LogWarning($"Użytkownik {user.Id} ({user.UserName}) z rolą Administrator/Bibliotekarz próbował usunąć swoje konto (POST).");
+                ModelState.AddModelError(string.Empty, "Administratorzy oraz Bibliotekarze nie mogą samodzielnie usuwać swoich kont za pomocą tej funkcji. Skontaktuj się z innym administratorem w celu zarządzania kontem.");
+                await CheckIfUserCanBeDeleted(user); // Ustaw flagi dla widoku
+                return Page();
+            }
+
             RequirePassword = await _userManager.HasPasswordAsync(user);
             if (RequirePassword)
             {
                 if (!await _userManager.CheckPasswordAsync(user, Input.Password))
                 {
                     ModelState.AddModelError(string.Empty, "Nieprawidłowe hasło.");
+                    await CheckIfUserCanBeDeleted(user); // Ustaw flagi dla widoku
                     return Page();
                 }
             }
 
-
+            // Sprawdzenie aktywnych wypożyczeń
             var hasActiveLoans = await _context.Wypozyczenie
                                          .AnyAsync(w => w.CzytelnikId == user.Id && !w.CzyZwrocona);
 
             if (hasActiveLoans)
             {
-                _logger.LogWarning($"Użytkownik {user.Id} ({user.UserName}) próbował usunąć konto, ale ma aktywne wypożyczenia.");
+                _logger.LogInformation($"Użytkownik {user.Id} ({user.UserName}) próbował usunąć konto, ale ma aktywne wypożyczenia (POST).");
                 ModelState.AddModelError(string.Empty, "Nie możesz usunąć konta, ponieważ masz niezwrócone książki. Prosimy najpierw zwrócić wszystkie wypożyczone pozycje.");
-                return Page(); // Zwróć stronę z błędem, nie usuwaj konta
+                await CheckIfUserCanBeDeleted(user); // Ustaw flagi dla widoku
+                return Page();
             }
-
 
             var result = await _userManager.DeleteAsync(user);
             var userId = await _userManager.GetUserIdAsync(user);
             if (!result.Succeeded)
             {
-                // logowanie błedów
                 foreach (var error in result.Errors)
                 {
                     _logger.LogError("Błąd podczas usuwania użytkownika {UserId}: {ErrorCode} - {ErrorDescription}", userId, error.Code, error.Description);

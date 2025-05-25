@@ -7,26 +7,39 @@
 
 <h3>@ViewData["Title"]</h3>
 
-<div class="alert alert-warning" role="alert">
-    <p>
-        <strong>Usunięcie tych danych trwale usunie Twoje konto, i nie będzie można tego odzyskać.</strong>
-    </p>
-</div>
 
-<div>
-    <form id="delete-user" method="post">
-        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
-        @if (Model.RequirePassword)
-        {
-            <div class="form-floating mb-3">
-                <input asp-for="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Wprowadź swoje hasło." />
-                <label asp-for="Input.Password" class="form-label">Hasło</label>
-                <span asp-validation-for="Input.Password" class="text-danger"></span>
-            </div>
-        }
-        <button class="w-100 btn btn-lg btn-danger" type="submit">Usuń dane i zamknij moje konto</button>
-    </form>
-</div>
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
+
+@if (Model.CanAttemptToDelete)
+{
+    <div class="alert alert-warning" role="alert">
+        <p>
+            <strong>Usunięcie tych danych trwale usunie Twoje konto, i nie będzie można tego odzyskać.</strong>
+        </p>
+    </div>
+
+    <div>
+        <form id="delete-user" method="post">
+            @if (Model.RequirePassword)
+            {
+                <div class="form-floating mb-3">
+                    <input asp-for="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Wprowadź swoje hasło." />
+                    <label asp-for="Input.Password" class="form-label">Hasło</label>
+                    <span asp-validation-for="Input.Password" class="text-danger"></span>
+                </div>
+            }
+            <button class="w-100 btn btn-lg btn-danger" type="submit">Usuń dane i zamknij moje konto</button>
+        </form>
+    </div>
+}
+else
+{
+    <div class="alert alert-danger" role="alert">
+        <h4>Operacja niedozwolona</h4>
+        <p>@Model.CannotDeleteReason</p>
+    </div>
+    <a asp-page="./Index" class="btn btn-secondary mt-3">Powrót do zarządzania kontem</a>
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
