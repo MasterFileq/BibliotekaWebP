@@ -48,14 +48,14 @@
         </div>
     }
 
-    @if (User.IsInRole("Administrator"))
+    @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
     {
         <div class="col-md-4">
             <div class="card mb-4 box-shadow">
                 <div class="card-body">
-                    <h5 class="card-title">Zarządzanie użytkownikami</h5>
-                    <p class="card-text">Zarządzaj kontami użytkowników.</p>
-                    <a href="Czytelniks/Index" class="btn btn-primary">Przeglądaj użytkowników</a>
+                    <h5 class="card-title">Zarządzanie czytelnikami</h5>
+                    <p class="card-text">Zarządzaj kontami czytelników.</p>
+                    <a href="Czytelniks/Index" class="btn btn-primary">Przeglądaj czytelników</a>
                 </div>
             </div>
         </div>
