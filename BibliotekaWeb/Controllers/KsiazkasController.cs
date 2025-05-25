@@ -26,13 +26,11 @@ namespace BibliotekaWeb.Controllers
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         }
 
-        // Metoda pomocnicza do walidacji numeru ISBN (format i suma kontrolna)
+        // Metoda pomocnicza do walidacji numeru ISBN
         private bool IsValidIsbn(string isbn)
         {
             if (string.IsNullOrWhiteSpace(isbn))
             {
-                // Jeśli ISBN jest opcjonalny i pusty, można zwrócić true.
-                // Zakładając, że jeśli jest podany, to musi być poprawny:
                 return false;
             }
 
@@ -40,48 +38,14 @@ namespace BibliotekaWeb.Controllers
 
             if (cleanedIsbn.Length == 10)
             {
-                if (!Regex.IsMatch(cleanedIsbn, @"^\d{9}[\dX]$", RegexOptions.IgnoreCase))
-                {
-                    return false;
-                }
-                // Walidacja sumy kontrolnej ISBN-10
-                int sum = 0;
-                for (int i = 0; i < 9; i++)
-                {
-                    sum += (cleanedIsbn[i] - '0') * (10 - i);
-                }
-                char lastChar = cleanedIsbn[9];
-                if (char.ToUpper(lastChar) == 'X')
-                {
-                    sum += 10;
-                }
-                else if (char.IsDigit(lastChar))
-                {
-                    sum += (lastChar - '0');
-                }
-                else
-                {
-                    return false; // Nieprawidłowy znak na końcu
-                }
-                return (sum % 11 == 0);
+                return Regex.IsMatch(cleanedIsbn, @"^\d{9}[\dX]$", RegexOptions.IgnoreCase);
             }
             else if (cleanedIsbn.Length == 13)
             {
-                if (!Regex.IsMatch(cleanedIsbn, @"^\d{13}$"))
-                {
-                    return false;
-                }
-                // Walidacja sumy kontrolnej ISBN-13
-                int sum = 0;
-                for (int i = 0; i < 12; i++)
-                {
-                    sum += (cleanedIsbn[i] - '0') * ((i % 2 == 0) ? 1 : 3);
-                }
-                int checkDigit = (10 - (sum % 10)) % 10;
-                return (checkDigit == (cleanedIsbn[12] - '0'));
+                return Regex.IsMatch(cleanedIsbn, @"^\d{13}$");
             }
 
-            return false; // Nie jest to ani ISBN-10 ani ISBN-13
+            return false;
         }
 
         // Metoda do wyświetlania katalogu książek

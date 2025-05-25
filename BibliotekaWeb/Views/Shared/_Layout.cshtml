@@ -3,71 +3,141 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+        (function() {
+            const themeKey = 'themePreferenceBibliotekaWeb'; 
+            try {
+                const savedTheme = localStorage.getItem(themeKey);
+                if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('dark-mode');
+                } else {
+                    document.documentElement.classList.remove('dark-mode');
+                }
+            } catch (e) {
+                console.warn('Nie można uzyskać dostępu do localStorage dla preferencji motywu.');
+            }
+        })();
+    </script>
     <title>@ViewData["Title"] - BibliotekaWeb</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/BibliotekaWeb.styles.css" asp-append-version="true" />
+    @* <link rel="stylesheet" href="~/BibliotekaWeb.styles.css" asp-append-version="true" /> *@
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light border-bottom box-shadow mb-3">
             <div class="container">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">BibliotekaWeb</a>
-                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        @* <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Strona główna</a>
-                        </li> *@
-                        <!--
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Prywatność</a>
-                        </li>
-                        -->
                         @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz") || User.IsInRole("Czytelnik"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Ksiazkas" asp-action="Katalog">Książki</a>
+                                <a class="nav-link" asp-area="" asp-controller="Ksiazkas" asp-action="Katalog">Książki</a>
                             </li>
                         }
                         @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Czytelniks" asp-action="Index">Czytelnicy</a>
+                                <a class="nav-link" asp-area="" asp-controller="Czytelniks" asp-action="Index">Czytelnicy</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Bibliotekarz" asp-action="Index">Wypożyczenia</a>
+                                <a class="nav-link" asp-area="" asp-controller="Bibliotekarz" asp-action="Index">Wypożyczenia</a>
                             </li>
                         }
                         @if (User.IsInRole("Czytelnik"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Ksiazkas" asp-action="Wypozyczone">Wypożyczenia</a>
+                                <a class="nav-link" asp-area="" asp-controller="Ksiazkas" asp-action="Wypozyczone">Wypożyczenia</a>
                             </li>
                         }
                     </ul>
-                    <partial name="_LoginPartial" />
+                    <div class="d-flex align-items-center">
+                        <button id="theme-toggle-button" class="btn btn-outline-secondary btn-sm me-2" type="button" title="Przełącz motyw">
+                            <span id="theme-icon">🌙</span>
+                        </button>
+                        <partial name="_LoginPartial" />
+                    </div>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
+
+    <div class="container flex-grow-1">
         <main role="main" class="pb-3">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
+    <footer class="border-top footer mt-auto">
         <div class="container">
-            &copy; 2024 - 2025 BibliotekaWeb - Łukasz Szczygielski & Grzegorz Sosna & Wiktor Pawłowski <!-- <a asp-area="" asp-controller="Home" asp-action="Privacy">Prywatność</a> -->
+            &copy; @DateTime.Now.Year - BibliotekaWeb - Łukasz Szczygielski & Grzegorz Sosna & Wiktor Pawłowski
         </div>
     </footer>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <script>
+        (function () {
+            const themeToggleButton = document.getElementById('theme-toggle-button');
+            const themeIcon = document.getElementById('theme-icon');
+            const htmlElement = document.documentElement; 
+            const currentThemeKey = 'themePreferenceBibliotekaWeb';
+
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    htmlElement.classList.add('dark-mode');
+                    if (themeIcon) themeIcon.textContent = '☀️';
+                    try {
+                        localStorage.setItem(currentThemeKey, 'dark');
+                    } catch (e) { console.warn('Nie można zapisać preferencji motywu w localStorage.'); }
+                } else {
+                    htmlElement.classList.remove('dark-mode');
+                    if (themeIcon) themeIcon.textContent = '🌙';
+                    try {
+                        localStorage.setItem(currentThemeKey, 'light');
+                    } catch (e) { console.warn('Nie można zapisać preferencji motywu w localStorage.'); }
+                }
+            }
+
+            function setInitialButtonIcon() {
+                if (htmlElement.classList.contains('dark-mode')) {
+                    if (themeIcon) themeIcon.textContent = '☀️';
+                } else {
+                    if (themeIcon) themeIcon.textContent = '🌙';
+                }
+            }
+
+            if (themeToggleButton) {
+                themeToggleButton.addEventListener('click', () => {
+                    const newTheme = htmlElement.classList.contains('dark-mode') ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                });
+            }
+            setInitialButtonIcon();
+        })();
+    </script>
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
