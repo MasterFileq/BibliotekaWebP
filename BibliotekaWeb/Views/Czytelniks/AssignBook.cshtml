@@ -1,4 +1,6 @@
 ﻿@model BibliotekaWeb.Models.WypozyczenieViewModel
+@using System.ComponentModel.DataAnnotations
+@using System.Reflection
 
 @{
     ViewData["Title"] = "Przypisz Książkę";
@@ -6,7 +8,7 @@
 
 <h1>Przypisz Książkę dla @Model.Email</h1>
 
-@* <!-- Wyświetlanie komunikatów o sukcesie lub błędzie --> *@
+<!-- Wyświetlanie komunikatów o sukcesie lub błędzie -->
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>
@@ -16,7 +18,7 @@
     <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
 }
 
-@* <!-- Formularz filtrowania --> *@
+<!-- Formularz filtrowania -->
 <form asp-action="AssignBook" method="get" class="mb-4">
     <input type="hidden" name="czytelnikId" value="@Model.CzytelnikId" />
     <div class="row">
@@ -25,7 +27,7 @@
             <input type="text" name="searchTitle" class="form-control" value="@ViewData["searchTitle"]" />
         </div>
         <div class="col-md-3">
-            <label for="searchAuthor">Autor:</label>
+            <label for="searchAuthor">Autor</label>
             <input type="text" name="searchAuthor" class="form-control" value="@ViewData["searchAuthor"]" />
         </div>
         <div class="col-md-3">
@@ -33,24 +35,19 @@
             <input type="text" name="searchISBN" class="form-control" value="@ViewData["searchISBN"]" />
         </div>
         <div class="col-md-3">
-            <label for="tematyka">Tematyka:</label>
-            <select name="tematyka" class="form-control">
-                @* <!-- Lista rozwijana z tematykami książek. --> *@
+            <label for="tematyka">Tematyka</label>
+            <select name="tematyka" class="form-control" asp-items="Html.GetEnumSelectList<BibliotekaWeb.Models.Tematyka>()">
                 <option value="">-- Wszystkie --</option>
-                @foreach (var temat in Model.Tematyki)
-                {
-                    <option value="@temat" selected="@(ViewData["tematyka"]?.ToString() == temat.ToString() ? "selected" : null)">@temat</option>
-                }
             </select>
         </div>
-        <div class="col-md-3 mt-4">
+        <div class="col-md-3 mt-3">
             <button type="submit" class="btn btn-primary">Filtruj</button>
-            <a asp-action="AssignBook" asp-route-czytelnikId="@Model.CzytelnikId" class="btn btn-secondary">Wyczyść</a>
+            <a asp-action="AssignBook" asp-route-czytelnikId="@Model.CzytelnikId" class="btn btn-default">Wyczyść</a>
         </div>
     </div>
 </form>
 
-@* <!-- Warunek wyświetlania książek lub komunikatu o ich braku --> *@
+<!-- Warunek wyświetlania książek lub komunikatu o ich braku -->
 @if (Model.Ksiazki == null || !Model.Ksiazki.Any())
 {
     <div class="alert alert-warning">
@@ -61,7 +58,7 @@
         }
     </div>
     <div>
-        <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+        <a asp-action="Index" class="btn btn-default">Powrót do listy</a>
     </div>
 }
 else
@@ -79,20 +76,26 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var ksiazka in Model.Ksiazki)
+            @foreach (var item in Model.Ksiazki)
             {
                 <tr>
-                    <td>@ksiazka.Tytul</td>
-                    <td>@ksiazka.Autor</td>
-                    <td>@ksiazka.ISBN</td>
-                    <td>@ksiazka.Tematyka</td>
-                    <td>@ksiazka.DostepneEgzemplarze</td>
+                    <td>@item.Tytul</td>
+                    <td>@item.Autor</td>
+                    <td>@item.ISBN</td>
+                    <td>
+                        @(item.Tematyka.GetType()
+                            .GetMember(item.Tematyka.ToString())
+                            .FirstOrDefault()
+                            ?.GetCustomAttribute<DisplayAttribute>()
+                            ?.GetName() ?? item.Tematyka.ToString())
+                    </td>
+                    <td>@item.DostepneEgzemplarze</td>
                     <td>
                         <form asp-action="AssignBook" method="post" style="display:inline;">
-                            <input type="hidden" name="KsiazkaId" value="@ksiazka.Id" />
+                            <input type="hidden" name="KsiazkaId" value="@item.Id" />
                             <input type="hidden" name="CzytelnikId" value="@Model.CzytelnikId" />
                             <input type="hidden" name="Email" value="@Model.Email" />
-                            <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Czy na pewno chcesz przypisać książkę: @ksiazka.Tytul?');">Wybierz</button>
+                            <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Czy na pewno chcesz przypisać książkę: @item.Tytul?');">Wypożycz</button>
                         </form>
                     </td>
                 </tr>
@@ -100,12 +103,10 @@ else
         </tbody>
     </table>
     <div>
-        <a asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+        <a asp-action="Index" class="btn btn-default">Powrót do listy</a>
     </div>
 }
 
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
+    <partial name="_ValidationScriptsPartial" />
 }
