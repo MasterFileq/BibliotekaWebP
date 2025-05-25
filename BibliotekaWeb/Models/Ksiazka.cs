@@ -8,6 +8,38 @@ namespace BibliotekaWeb.Models
         Ekonomia,
         Matematyka,
         Geografia,
+        [Display(Name = "Literatura piękna")]
+        LiteraturaPiekna,
+        Fantastyka,
+        Kryminał,
+        Horror,
+        Romans,
+        [Display(Name = "Literatura młodzieżowa")]
+        LiteraturaMlodziezowa,
+        [Display(Name = "Literatura dziecięca")]
+        LiteraturaDziecieca,
+        [Display(Name = "Literatura faktu")]
+        LiteraturaFaktu,
+        Poradniki,
+        [Display(Name = "Religia i duchowość")]
+        ReligiaIDuchowosc,
+        [Display(Name = "Nauka i technika")]
+        NaukaITechnika,
+        [Display(Name = "Historia i polityka")]
+        HistoriaIPolityka,
+        [Display(Name = "Komiks i powieść graficzna")]
+        KomiksIPowiescGraficzna,
+        Poezja,
+        Dramat,
+        Antologie,
+        [Display(Name = "Satyra i humor")]
+        SatyraIHumor,
+        [Display(Name = "Literatura podróżnicza")]
+        LiteraturaPodroznicza,
+        [Display(Name = "Literatura militarna")]
+        LiteraturaMilitarna,
+        [Display(Name = "Literatura regionalna")]
+        LiteraturaRegionalna,
         Inne
     }
 
