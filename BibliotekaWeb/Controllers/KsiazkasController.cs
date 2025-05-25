@@ -235,7 +235,7 @@ namespace BibliotekaWeb.Controllers
                 ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
             }
 
-            // Walidacja formatu i sumy kontrolnej ISBN
+            // Walidacja formatu
             if (!string.IsNullOrWhiteSpace(ksiazka.ISBN) && !IsValidIsbn(ksiazka.ISBN))
             {
                 ModelState.AddModelError("ISBN", "Podany numer ISBN jest nieprawidłowy (błędny format lub suma kontrolna).");
