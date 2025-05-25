@@ -63,9 +63,9 @@
     @if (User.IsInRole("Administrator") || User.IsInRole("Bibliotekarz"))
     {
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edytuj</a>
-        if (Model.DostepneEgzemplarze < Model.IloscEgzemplarzy)
+        @* if (Model.DostepneEgzemplarze < Model.IloscEgzemplarzy)
         {
             <a asp-action="ZwrocByAdmin" asp-route-id="@Model.Id" class="btn btn-primary">Zwróć (Admin)</a>
-        }
+        } *@
     }
 </div>
