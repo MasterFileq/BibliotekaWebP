@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
+using System.Text.RegularExpressions; // Dodano dla Regex
 using System.Threading.Tasks;
 
 namespace BibliotekaWeb.Controllers
@@ -23,6 +24,64 @@ namespace BibliotekaWeb.Controllers
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        }
+
+        // Metoda pomocnicza do walidacji numeru ISBN (format i suma kontrolna)
+        private bool IsValidIsbn(string isbn)
+        {
+            if (string.IsNullOrWhiteSpace(isbn))
+            {
+                // Jeśli ISBN jest opcjonalny i pusty, można zwrócić true.
+                // Zakładając, że jeśli jest podany, to musi być poprawny:
+                return false;
+            }
+
+            string cleanedIsbn = isbn.Replace("-", "").Replace(" ", "");
+
+            if (cleanedIsbn.Length == 10)
+            {
+                if (!Regex.IsMatch(cleanedIsbn, @"^\d{9}[\dX]$", RegexOptions.IgnoreCase))
+                {
+                    return false;
+                }
+                // Walidacja sumy kontrolnej ISBN-10
+                int sum = 0;
+                for (int i = 0; i < 9; i++)
+                {
+                    sum += (cleanedIsbn[i] - '0') * (10 - i);
+                }
+                char lastChar = cleanedIsbn[9];
+                if (char.ToUpper(lastChar) == 'X')
+                {
+                    sum += 10;
+                }
+                else if (char.IsDigit(lastChar))
+                {
+                    sum += (lastChar - '0');
+                }
+                else
+                {
+                    return false; // Nieprawidłowy znak na końcu
+                }
+                return (sum % 11 == 0);
+            }
+            else if (cleanedIsbn.Length == 13)
+            {
+                if (!Regex.IsMatch(cleanedIsbn, @"^\d{13}$"))
+                {
+                    return false;
+                }
+                // Walidacja sumy kontrolnej ISBN-13
+                int sum = 0;
+                for (int i = 0; i < 12; i++)
+                {
+                    sum += (cleanedIsbn[i] - '0') * ((i % 2 == 0) ? 1 : 3);
+                }
+                int checkDigit = (10 - (sum % 10)) % 10;
+                return (checkDigit == (cleanedIsbn[12] - '0'));
+            }
+
+            return false; // Nie jest to ani ISBN-10 ani ISBN-13
         }
 
         // Metoda do wyświetlania katalogu książek
@@ -206,11 +265,16 @@ namespace BibliotekaWeb.Controllers
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Create([Bind("Id,Tytul,Autor,ISBN,IloscEgzemplarzy,Tematyka")] Ksiazka ksiazka)
         {
-
             // Sprawdzanie, czy ISBN jest unikalny
-            if (await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN))
+            if (!string.IsNullOrWhiteSpace(ksiazka.ISBN) && await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN))
             {
                 ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
+            }
+
+            // Walidacja formatu i sumy kontrolnej ISBN
+            if (!string.IsNullOrWhiteSpace(ksiazka.ISBN) && !IsValidIsbn(ksiazka.ISBN))
+            {
+                ModelState.AddModelError("ISBN", "Podany numer ISBN jest nieprawidłowy (błędny format lub suma kontrolna).");
             }
 
             if (ModelState.IsValid)
@@ -227,7 +291,11 @@ namespace BibliotekaWeb.Controllers
                 catch (DbUpdateException ex)
                 {
                     TempData["ErrorMessage"] = $"Wystąpił błąd podczas dodawania książki: {ex.Message}";
-                    return View(ksiazka);
+                    // Nie zwracamy widoku z modelem, jeśli błąd jest związany z bazą danych po walidacji,
+                    // ale jeśli ModelState nie byłby Valid, to zwrócenie View(ksiazka) jest poprawne.
+                    // Tutaj błąd wystąpił przy SaveChangesAsync, więc ModelState.IsValid było true.
+                    // Można dodać logowanie błędu.
+                    return View(ksiazka); // Zwróć widok z modelem, aby użytkownik mógł poprawić dane
                 }
             }
 
@@ -257,28 +325,34 @@ namespace BibliotekaWeb.Controllers
         [Authorize(Roles = "Administrator, Bibliotekarz")]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Tytul,Autor,ISBN,IloscEgzemplarzy,Tematyka")] Ksiazka ksiazka)
         {
-
-            // Sprawdzanie, czy książka istnieje w bazie danych
             if (id != ksiazka.Id)
             {
                 return NotFound();
             }
 
-            // Sprawdzanie, czy ISBN jest unikalny
-            if (await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN && k.Id != ksiazka.Id))
-            {
-                ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
-            }
-
-            // Pobieranie istniejącej książki z bazy danych (bez śledzenia zmian)
-            var existingKsiazka = await _context.Ksiazka.AsNoTracking().FirstOrDefaultAsync(k => k.Id == id);
-            if (existingKsiazka == null)
+            var bookFromDb = await _context.Ksiazka.AsNoTracking().FirstOrDefaultAsync(k => k.Id == id);
+            if (bookFromDb == null)
             {
                 return NotFound();
             }
 
+            // Sprawdzanie, czy ISBN jest unikalny (jeśli został zmieniony)
+            if (!string.IsNullOrWhiteSpace(ksiazka.ISBN) && bookFromDb.ISBN != ksiazka.ISBN)
+            {
+                if (await _context.Ksiazka.AnyAsync(k => k.ISBN == ksiazka.ISBN && k.Id != ksiazka.Id))
+                {
+                    ModelState.AddModelError("ISBN", "Książka z podanym ISBN już istnieje.");
+                }
+            }
+
+            // Walidacja formatu i sumy kontrolnej ISBN
+            if (!string.IsNullOrWhiteSpace(ksiazka.ISBN) && !IsValidIsbn(ksiazka.ISBN))
+            {
+                ModelState.AddModelError("ISBN", "Podany numer ISBN jest nieprawidłowy (błędny format lub suma kontrolna).");
+            }
+
             // Sprawdzanie, czy liczba egzemplarzy jest mniejsza niż liczba aktualnie wypożyczonych
-            int wypozyczoneEgzemplarze = existingKsiazka.IloscEgzemplarzy - existingKsiazka.DostepneEgzemplarze;
+            int wypozyczoneEgzemplarze = bookFromDb.IloscEgzemplarzy - bookFromDb.DostepneEgzemplarze;
             if (ksiazka.IloscEgzemplarzy < wypozyczoneEgzemplarze)
             {
                 ModelState.AddModelError("IloscEgzemplarzy", $"Liczba egzemplarzy nie może być mniejsza niż liczba aktualnie wypożyczonych ({wypozyczoneEgzemplarze}).");
@@ -288,16 +362,29 @@ namespace BibliotekaWeb.Controllers
             {
                 try
                 {
-                    // Aktualizacja danych książki
-                    existingKsiazka.Tytul = ksiazka.Tytul;
-                    existingKsiazka.Autor = ksiazka.Autor;
-                    existingKsiazka.ISBN = ksiazka.ISBN;
-                    existingKsiazka.Tematyka = ksiazka.Tematyka;
-                    int roznicaEgzemplarzy = ksiazka.IloscEgzemplarzy - existingKsiazka.IloscEgzemplarzy;
-                    existingKsiazka.IloscEgzemplarzy = ksiazka.IloscEgzemplarzy;
-                    existingKsiazka.DostepneEgzemplarze += roznicaEgzemplarzy;
+                    // Przygotowanie obiektu do aktualizacji
+                    var ksiazkaToUpdate = new Ksiazka
+                    {
+                        Id = ksiazka.Id,
+                        Tytul = ksiazka.Tytul,
+                        Autor = ksiazka.Autor,
+                        ISBN = ksiazka.ISBN,
+                        Tematyka = ksiazka.Tematyka,
+                        IloscEgzemplarzy = ksiazka.IloscEgzemplarzy
+                    };
 
-                    _context.Update(existingKsiazka);
+                    // Obliczanie nowych dostępnych egzemplarzy
+                    int roznicaEgzemplarzy = ksiazka.IloscEgzemplarzy - bookFromDb.IloscEgzemplarzy;
+                    ksiazkaToUpdate.DostepneEgzemplarze = bookFromDb.DostepneEgzemplarze + roznicaEgzemplarzy;
+
+                    // Dodatkowe zabezpieczenie (chociaż poprzednia walidacja powinna to wyłapać)
+                    if (ksiazkaToUpdate.DostepneEgzemplarze < 0)
+                    {
+                        ModelState.AddModelError("IloscEgzemplarzy", "Aktualizacja liczby egzemplarzy spowodowałaby ujemną liczbę dostępnych egzemplarzy.");
+                        return View(ksiazka);
+                    }
+
+                    _context.Update(ksiazkaToUpdate);
                     await _context.SaveChangesAsync();
                     TempData["SuccessMessage"] = "Książka została pomyślnie zaktualizowana.";
                     return RedirectToAction(nameof(Katalog));
@@ -308,16 +395,21 @@ namespace BibliotekaWeb.Controllers
                     {
                         return NotFound();
                     }
-                    throw;
+                    else
+                    {
+                        throw; // Rzuć wyjątek dalej, jeśli nie jest to problem z istnieniem książki
+                    }
                 }
                 catch (DbUpdateException ex)
                 {
                     TempData["ErrorMessage"] = $"Wystąpił błąd podczas aktualizacji książki: {ex.Message}";
-                    return View(ksiazka);
+                    // Logowanie błędu może być tu przydatne
+                    return View(ksiazka); // Zwróć widok z modelem, aby użytkownik mógł poprawić dane
                 }
             }
-            return View(ksiazka);
+            return View(ksiazka); // Jeśli ModelState nie jest ważny, zwróć widok z błędami
         }
+
 
         // Akcja do usuwania książki na podstawie ID
         [Authorize(Roles = "Administrator, Bibliotekarz")]
@@ -379,6 +471,7 @@ namespace BibliotekaWeb.Controllers
             catch (DbUpdateException ex)
             {
                 TempData["ErrorMessage"] = $"Wystąpił błąd podczas usuwania książki: {ex.Message}";
+                // Logowanie błędu
                 return RedirectToAction(nameof(Katalog));
             }
 
@@ -393,7 +486,7 @@ namespace BibliotekaWeb.Controllers
 
         // Akcja do zwracania książki przez administratora lub bibliotekarza
         [Authorize(Roles = "Administrator, Bibliotekarz")]
-        public async Task<IActionResult> ZwrocByAdmin(int id)
+        public async Task<IActionResult> ZwrocByAdmin(int id) // id tutaj to KsiazkaId
         {
             // Pobieranie wypożyczenia na podstawie ID książki
             var wypozyczenie = await _context.Wypozyczenie
@@ -406,7 +499,7 @@ namespace BibliotekaWeb.Controllers
             }
 
             // Pobieranie książki na podstawie ID
-            var ksiazka = await _context.Ksiazka.FindAsync(id);
+            var ksiazka = await _context.Ksiazka.FindAsync(id); // id to KsiazkaId
             if (ksiazka == null)
             {
                 TempData["ErrorMessage"] = "Nie znaleziono książki.";
@@ -415,6 +508,7 @@ namespace BibliotekaWeb.Controllers
 
             // Zmiana statusu wypożyczenia na zwrócone
             wypozyczenie.CzyZwrocona = true;
+            wypozyczenie.TerminZwrotu = DateTime.Now; // Opcjonalnie: zapisz datę zwrotu
             ksiazka.DostepneEgzemplarze++;
 
             try
@@ -427,6 +521,7 @@ namespace BibliotekaWeb.Controllers
             catch (DbUpdateException ex)
             {
                 TempData["ErrorMessage"] = $"Wystąpił błąd podczas zwracania książki: {ex.Message}";
+                // Logowanie błędu
                 return RedirectToAction("Index", "Bibliotekarz");
             }
 
